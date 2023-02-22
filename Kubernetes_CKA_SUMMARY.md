@@ -329,6 +329,8 @@ This filter can be customized and we also can create our own scheduler.
 >
 > One way to create the rules, it is by using `IP tables` rules.
 
+&nbsp;
+
 <!--- Center image --->
 <div align="center">
   <a href="assets/CKA_Kube_Proxy.jpg" target="_blank">
@@ -341,3 +343,114 @@ This filter can be customized and we also can create our own scheduler.
 </div>
 
 &nbsp;
+
+## Namespaces
+
+A `namespace` is an isolated environment where you define your set of POD, service, replica sets or deployment objects. Each time we create aone of them, it is created into a `default ` namespace.
+
+When you have to manage a Production environment, it is advised to define a `dev`, `prod` namespaces to avoid accidentally deleting some objects.
+
+When first setting up a Kubernetes cluster we alreday define 3 namespaces :
+
+- `default` : where you create your obejects without specifying a namespace
+- `kube-system` : networking, DNS, ... pods are running there.
+- `kube-public` : where we create available resources to all users
+
+<!--- Center image --->
+<div align="center">
+  <a href="assets/CKA_Namespace_1.jpg" target="_blank">
+    <img src="assets/CKA_Namespace_1.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+In each namespace, you define a specific `policy` where you assign a quota of resources.
+
+<!--- Center image --->
+<div align="center">
+  <a href="assets/CKA_Namespace_2.jpg" target="_blank">
+    <img src="assets/CKA_Namespace_2.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+<!--- Center image --->
+<div align="center">
+  <a href="assets/CKA_Namespace_3.jpg" target="_blank">
+    <img src="assets/CKA_Namespace_3.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="assets/CKA_Namespace_4.jpg" target="_blank">
+    <img src="assets/CKA_Namespace_4.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>When a Web app pod coomunicates with a service <b>in the same namespace</b>, it only need s to specify its name. When communicating with a service <b>from another space</b>, we need to append to the service name, the <b>NAMESPACE_NAME.svc.cluster.local</b> format</i>
+</div>
+
+&nbsp;
+
+#### Kubectl
+
+- Display Pods in the `kube-system` namespace
+
+```
+🥃 ~ kubectl get pods --namespace=kube-system
+
+NAME                                     READY   STATUS    RESTARTS      AGE
+coredns-565d847f94-9swt6                 1/1     Running   0             2d7h
+coredns-565d847f94-pmk6k                 1/1     Running   0             2d7h
+etcd-docker-desktop                      1/1     Running   0             2d7h
+kube-apiserver-docker-desktop            1/1     Running   0             2d7h
+kube-controller-manager-docker-desktop   1/1     Running   0             2d7h
+kube-proxy-gcc2p                         1/1     Running   0             2d7h
+kube-scheduler-docker-desktop            1/1     Running   0             2d7h
+storage-provisioner                      1/1     Running   1 (20s ago)   2d7h
+vpnkit-controller                        1/1     Running   1 (19s ago)   2d7h
+```
+
+- To create a `dev` namespace
+
+```
+🥃 ~ kubectl create namespace dev
+```
+
+&nbsp;
+
+#### YAML
+
+You can run `kubectl create -f pod-definition.yml --namespace=dev` or also define the `namespace` property in Yaml file for **creating a POD in a specific namespace** :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypostgres-pod
+  # Here
+  namespace: dev
+  labels:
+    app: mypostgres
+    tier: db-tier
+spec:
+  containers:
+    - name: postgres-container
+      image: postgres
+      env:
+        - name: POSTGRES_PASSWORD
+          value: mysecretpassword
+```
+
+To create a namespace :
+
+```yaml
+### namespace-dev.yml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+```
