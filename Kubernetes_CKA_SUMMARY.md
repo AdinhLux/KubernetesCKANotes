@@ -276,7 +276,7 @@ We have different controllers :
 
 Responsible for scheduling / deciding which pods goes on which node (it is `kubelet` who creates the pod on the ships).
 
-How does thse cheduler assign these pods ? It checks the hardware requirements (CPU, memory) and try yo identify the best node for the pod. By steps, by default :
+How does the scheduler assign these pods ? It checks the hardware requirements (CPU, memory) and try yo identify the best node for the pod. By steps, by default :
 
 ```
 1. Filter nodes (resource requirements)
@@ -545,7 +545,7 @@ target:
 
 &nbsp;
 
-## Labels and Selectors
+### Labels and Selectors
 
 As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
 
@@ -572,7 +572,7 @@ pod/app-1-zzxdf   1/1     Running   0          8m48s
 
 &nbsp;
 
-## Taints and Tolerations (Pod to Node relationship)
+### Taints and Tolerations (Pod to Node relationship)
 
 `Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
 
@@ -591,6 +591,9 @@ The `taint-effect` defines what would happen to the PODs if they do not tolerate
 ```bash
 # Apply a taint to a node : kubectl taint nodes node-name key=value:taint-effect
 🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule
+
+# To untaint a node, add a "-" at the end
+🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule-
 ```
 
 `Tolerations` are added to pods :
@@ -616,4 +619,200 @@ spec:
       operator: "Equal"
       value: "blue"
       effect: "NoSchedule"
+```
+
+For information, a Taint is already applied to the `master` node when cluster is created, for avoiding PODs to be scheduled in this node.
+
+&nbsp;
+
+### Node selector & Node affinity
+
+We can set a limition on the pods so that they only run on particular nodes. There are 2 methods :
+
+- `Node selector` : we add a `nodeSelector` property at the pod-definition file. Before we must add labels to nodes.
+
+```bash
+# Add "size: Large" label to node : kubectl label nodes <node-name> <label-key>=<label-value>
+🥃 ~ kubectl label nodes node01 size=Large
+```
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # We specify the size as "Large" if we want to run on a node with high resources
+  # "size: Large" label in nodes MUST BE DEFINED prior to creating the pod
+  nodeSelector:
+    size: Large
+```
+
+&nbsp;
+
+- `Node affinity` : Node selector has its limitations because we just use a simple label, no advanced expressions : this is where we use the node affinities.
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # Node Affinity
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: size
+                # The 'In' operator ensures that the pod will be placed on a node whose label 'size' has any value in the list of values specified here
+                operator: In
+                # operator: NotIn
+                # operator: Exists -> only checks if label exists without comparing values
+                values:
+                  - Large
+                  - Medium
+```
+
+There are different types of affinity that define `the behaviour of the scheduler`. They come into play when for example there are no nodes with matching labels :
+
+- Available :
+  - `requiredDuringSchedulingIgnoredDuringExecution` : The pod will not be scheduled.
+  - `preferredDuringSchedulingIgnoredDuringExecution` : The pod will be placed in any available node
+
+> With **IgnoredDuringExecution**, the pods already created will not be impacted by any changes.
+
+- Planned :
+  - `requiredDuringSchedulingRequiredDuringExecution` : Any changes will evict pods not matching labels
+
+&nbsp;
+
+### Resources limit
+
+Kubernetes assumes that a pod or container within a pod requires 0.5 CPU and 256 Mb of mermory: this is known as the `resource request` for a container (min resources).
+
+For the POD to pick up those defaults you must have first set those as default values for request and limit by creating a `LimitRange` in that namespace.
+
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mem-limit-range
+spec:
+  limits:
+    - default:
+        cpu: 1
+        memory: 512Mi
+      defaultRequest:
+        cpu: 0.5
+        memory: 256Mi
+      type: Container
+```
+
+We can specify requirement and limit values by editing the pod definition file :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # Resources
+      resources:
+        requests:
+          # It is Gibibytes, not GigaBytes
+          memory: "1Gi"
+          cpu: 1
+        limits:
+          memory: "2Gi"
+          cpu: 2
+```
+
+&nbsp;
+
+### DaemonSets
+
+They are like `Replica Sets` as it helps you deploy multiple instances of pods `but it runs one copy of your pod on each node in your cluster`.
+
+Whenever a new node is added to/removed from the cluster, a replica of the pod is automatically added to/removed from that node.
+
+Some use cases of DS :
+
+- Deploying a monitoring agent in the form of pod (Monitoring solution)
+- Deploying a log collector (Logs Viewer)
+
+&nbsp;
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_1.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_1.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>The DS ensures that one copy of the pod is always present in all nodes in the cluster</i>
+</div>
+
+&nbsp;
+
+As discussed in the beginner's courses, one of the worker node components required on every node is a `kube-proxy` : **that is one good use case of DS**, the kube-proxy component can be deployed as a DS in the cluster.
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_2.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_2.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+Creating a DS definition file is like ReplicaSet
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_3.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_3.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### Kubectl
+
+- Listing Daemon Sets
+
+```
+🥃 ~ kubectl get daemonsets
+
+NAMESPACE      NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   kube-flannel-ds   1         1         1       1            1           <none>                   4m54s
+kube-system    kube-proxy        1         1         1       1            1           kubernetes.io/os=linux   4m57s
 ```

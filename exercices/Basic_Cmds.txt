@@ -1,0 +1,193 @@
+Q:
+--
+Apply a label color=blue to node node01
+
+
+A:
+--
+
+1)  $ kubectl label node node01 color=blue
+
+
+===============================================================================================================================
+
+Q:
+--
+Create a new deployment named blue with the nginx image and 3 replicas.
+
+
+A:
+--
+
+1)  $ kubectl create deployment blue --image=nginx --replicas=3
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blue
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: pod
+      labels:
+        app: pod
+    spec:
+      containers:
+        - name: container
+          image: nginx
+  selector:
+    matchLabels:
+      app: pod
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Which nodes can the pods for the blue deployment be placed on ? Check if controlplane and node01 have any taints on them that will prevent the pods to be scheduled on them. 
+If there are no taints, the pods can be scheduled on either node. 
+
+
+A:
+--
+
+So run the following command to check the taints on both nodes : 
+
+	$ kubectl describe node controlplane | grep -i taints
+	$ kubectl describe node node01 | grep -i taints
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Set Node Affinity to the deployment to place the pods on node01 only.
+
+
+A:
+--
+
+1) Edit config in memory
+
+	$ kubectl edit deployment blue
+	
+2) Edit file and update
+
+	$ kubectl apply -f deploy.yaml
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Which nodes are the pods placed on now ?
+
+
+A:
+--
+
+$ kubectl get pods -o wide
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Create a new deployment named red with the nginx image and 2 replicas, and ensure it gets placed on the controlplane node only.
+
+Use the label key - node-role.kubernetes.io/control-plane - which is already set on the controlplane node.
+
+
+A:
+--
+
+$ kubectl create -f reddeploy.yaml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: red
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      run: nginx
+  template:
+    metadata:
+      labels:
+        run: nginx
+    spec:
+      containers:
+      - image: nginx
+        imagePullPolicy: Always
+        name: nginx
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+```
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Another pod called elephant has been deployed in the default namespace. It fails to get to a running state. Inspect this pod and identify the Reason why it is not running.
+
+
+A:
+--
+$ kubectl describe pod elephant  | grep -A5 State:
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Deploy a DaemonSet for FluentD Logging.
+
+
+A:
+--
+An easy way to create a DaemonSet is to first generate a YAML file for a Deployment with the command 
+`kubectl create deployment elasticsearch --image=registry.k8s.io/fluentd-elasticsearch:1.20 -n kube-system --dry-run=client -o yaml > fluentd.yaml`. 
+
+Next, remove the replicas, strategy and status fields from the YAML file using a text editor. Also, change the kind from Deployment to DaemonSet.
+
+Finally, create the Daemonset by running `kubectl create -f fluentd.yaml`
+
+
+$ kubectl create deployment elasticsearch --image=registry.k8s.io/fluentd-elasticsearch:1.20 -n kube-system --dry-run=client -o yaml > fluentd.yaml
+$ vi fluentd.yaml
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: elasticsearch
+  name: elasticsearch
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+      - image: registry.k8s.io/fluentd-elasticsearch:1.20
+        name: fluentd-elasticsearch                                              
+```
+
+$ kubectl create -f fluentd.yaml
