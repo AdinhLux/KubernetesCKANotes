@@ -454,3 +454,95 @@ kind: Namespace
 metadata:
   name: dev
 ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Scheduling
+
+> REMINDER : The scheduler is responsible for scheduling / deciding which pods goes on which node.
+
+&nbsp;
+
+### When there is no scheduler to monitor
+
+The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself vy setting the `nodeName` property in pod specification file.
+
+```bash
+🥃 ~ kubectl get pods
+
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   0/1     Pending   0          24s
+```
+
+&nbsp;
+
+### Manual scheduling
+
+Every POD has a `nodeName` property which is **NOT SET** by default :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # By default it is not specified
+      nodeName:
+```
+
+Kubernetes adds it automatically :
+
+- The scheduler goes through all the pods and looks for those that do not have this property set.
+- It then identifies the right node for the pod by running a scheduling algorithm.
+- Once identified, it schedules the pod on the node by setting the `nodeName` property by creating a binding object
+
+&nbsp;
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Manual_Scheduling_1.jpg" target="_blank">
+    <img src="assets/CKA_Manual_Scheduling_1.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **What if the pod is already created and we want to assign to a node ?**
+
+Kubernets will not allow us to modify the `nodeName` property of a pod. The solutions :
+
+- creating a binding object and send a POST request to the pod's binding API (thus mimicking what the scheduler does)
+
+```yaml
+### Pod-bind-definition.yml
+
+apiVersion: v1
+kind: Binding
+metadata:
+  name: nginx-bind
+target:
+  apiVersion: v1
+  kind: Node
+  # You target with the name of the node
+  name: node02
+# curl --header "Content-Type:application/json" --request POST --data '{"apiVersion":"v1", "kind": "Binding“ …. }' http://$SERVER/api/v1/namespaces/default/pods/$PODNAME/binding/
+```
+
+- OR running `kubectl replace --force -f pod-definition.yml` after having edited the pod-definition.yml
+
+&nbsp;
+
+## Labels and Selectors
