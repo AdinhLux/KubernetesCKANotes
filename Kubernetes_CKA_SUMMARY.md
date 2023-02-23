@@ -546,3 +546,74 @@ target:
 &nbsp;
 
 ## Labels and Selectors
+
+As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
+
+```bash
+# We are looking for PODs having this label 'env : dev'
+🥃 ~ kubectl get pods --selector env=dev
+
+NAME          READY   STATUS    RESTARTS   AGE
+db-1-b8zlr    1/1     Running   0          104s
+app-1-46r64   1/1     Running   0          104s
+db-1-gsvcl    1/1     Running   0          104s
+app-1-5wpqm   1/1     Running   0          104s
+db-1-qbg9k    1/1     Running   0          104s
+app-1-54w6j   1/1     Running   0          104s
+db-1-bx8rd    1/1     Running   0          103s
+
+
+# We want all Kubernetes objects which are part of the env: prod, the bu: finance and of tier: frontend
+🥃 ~ kubectl get all --selector env=prod,bu=finance,tier=frontend
+
+NAME              READY   STATUS    RESTARTS   AGE
+pod/app-1-zzxdf   1/1     Running   0          8m48s
+```
+
+&nbsp;
+
+## Taints and Tolerations (Pod to Node relationship)
+
+`Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
+
+It is used when we decide to use a node for a specific use case.
+
+&nbsp;
+
+#### **How can you restrict what pods are placed on what nodes ?**
+
+The `taint-effect` defines what would happen to the PODs if they do not tolerate the taint. There are 3 taint effects :
+
+- `NoSchedule` : pods will not be scheduled on the node
+- `PreferNoSchedule` : the system will try to avoid placing the pod on the node but it is not guaranteed
+- `NoExecute` : new pods will not be scheduled on the node and existing pods will be evicted if they don't tolerate the taint.
+
+```bash
+# Apply a taint to a node : kubectl taint nodes node-name key=value:taint-effect
+🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule
+```
+
+`Tolerations` are added to pods :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # Here, in DOUBLE QUOTES
+  tolerations:
+    - key: "app"
+      operator: "Equal"
+      value: "blue"
+      effect: "NoSchedule"
+```
