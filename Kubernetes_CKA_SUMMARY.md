@@ -886,3 +886,83 @@ As `static PODs` are not dependent on the **Kubernetes control plane**, we can u
 &nbsp;
 
 ### Multiple schedulers
+
+**If you need to schedule specific applications**, you can write your own Kubernetes scheduler program, package it and deploy it as the default scheduler or as an additional scheduler in the Kubernetes cluster.
+
+> So Kubernetes cluster can have multiple schedulers at a time : when creating a pod or deployment, we can instruct Kubernetes to have the pod scheduled by a specific scheduler.
+
+&nbsp;
+
+- To deploy the custom scheduler as a pod
+
+```yaml
+### my-custom-scheduler.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-custom-scheduler
+  namespace: kube-system
+spec:
+  containers:
+    - command:
+        - kube-scheduler
+        - --address=127.0.0.1
+        # File having the authentication info to connect to Kube API server
+        - --kubeconfig=/etc/kubernetes/scheduler.conf
+        - --config=/etc/kubernetes/my-scheduler-config.yaml
+      image: k8s.gcr.io/kube-scheduler-amd64:v1.11.3
+      name: kube-scheduler
+```
+
+```yaml
+### my-scheduler-config.yaml
+
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+profiles:
+  - schedulerName: my-scheduler
+# Used when we have multiple  copies of the scheduler running on different master nodes as high-availability setup.
+# If multiple copies of the same scheduler are running on different nodes, only one can be active at a time.
+# That's where the leaderElection helps in choosing a leader whol will lead the scheduling activities
+leaderElection:
+  leaderElect: true
+  resourceNamespace: kube-system
+  resourceName: lock-object-my-scheduler
+```
+
+- To create a pod with a specific schduler
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # Choose scheduler
+      schedulerName: my-custom-scheduler
+```
+
+- To know which scheduler picked up (see the REASON = Scheduled)
+
+```bash
+🥃 ~ kubectl get events -o wide
+
+LAST SEEN   TYPE      REASON                    OBJECT              SUBOBJECT                SOURCE                                    MESSAGE                                                                              FIRST SEEN   COUNT   NAME
+18s         Normal    Scheduled                 pod/nginx                                    my-scheduler, my-scheduler-my-scheduler   Successfully assigned default/nginx to controlplane                                  18s          1       nginx.1746be500cbc7585
+```
+
+- To check scheduler logs
+
+```bash
+🥃 ~ kubectl logs my-scheduler --namespace=kube-system
+```
