@@ -816,3 +816,73 @@ NAMESPACE      NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILA
 kube-flannel   kube-flannel-ds   1         1         1       1            1           <none>                   4m54s
 kube-system    kube-proxy        1         1         1       1            1           kubernetes.io/os=linux   4m57s
 ```
+
+&nbsp;
+
+### Static PODs
+
+In a normal cluster, the `kubelet` relies on the **kube API server** for instructions on what pods to load on its node, based on a decision made by the **kube scheduler** which is stored in the **etcd data store**.
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_1.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_1.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **What if there is no master node and only 1 worker node ?**
+
+The `kubelet` can manage a node independently : if we don't have the **kube API server** where we provide the **pod definition file**, we can configure the kubelet to read them `from a directory on a server, designated to store information about pods`.
+
+&nbsp;
+
+The kubelet periodically checks this directory for files, reads these files and creates pods on the host. Not only does it create the pod, it can ensure that the pod stays alive :
+
+- If the application crashes, the kubelet attempts to restart it
+- If we make a change to a file, the kubelet recreates the pod for those changes to take effect
+- If we remove a file from this directory, the kubelet destroys the pod automatically
+
+These created pods are known as `static PODs`.
+
+> We can not create a Replica Set, Deployment or Service with a kubelet alone (we need the whole architecture)
+
+> The directory could be any directory on the host, and the location is passed in to the kubelet as an option while running the service. The option is called **--pod-manifest-path** but we could instead provide it thorugh a configuration file by passing the argument **--config**
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_2.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_2.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+The kubelet can create both kind of pods at the same time (the static and the ones from Kube API server). The API server is aware of the static ones (a ready-only mirrored one is created in the Kube API server).
+
+As `static PODs` are not dependent on the **Kubernetes control plane**, we can use them to deploy control plane components itself as pods on a node.
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_3.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_3.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>This way, we don't have to download the binaries, configure services, or worry about the services crashing (as static pods they will be automatically restarted by the kubelet)</i>
+</div>
+
+&nbsp;
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_4.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_4.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+### Multiple schedulers

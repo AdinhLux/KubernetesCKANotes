@@ -1,0 +1,157 @@
+Q:
+--
+How many static pods exist in this cluster in all namespaces ?
+
+
+A:
+--
+
+Run the command kubectl get pods --all-namespaces and look for those with -controlplane appended in the name.
+
+NAMESPACE      NAME                                   READY   STATUS    RESTARTS   AGE
+kube-flannel   kube-flannel-ds-grf6x                  1/1     Running   0          7m47s
+kube-flannel   kube-flannel-ds-hshrb                  1/1     Running   0          8m2s
+kube-system    coredns-787d4945fb-7srwn               1/1     Running   0          8m1s
+kube-system    coredns-787d4945fb-trf57               1/1     Running   0          8m1s
+kube-system    etcd-controlplane                      1/1     Running   0          8m11s                # static pod
+kube-system    kube-apiserver-controlplane            1/1     Running   0          8m11s                # static pod
+kube-system    kube-controller-manager-controlplane   1/1     Running   0          8m15s                # static pod
+kube-system    kube-proxy-bc8l4                       1/1     Running   0          7m47s
+kube-system    kube-proxy-swqkc                       1/1     Running   0          8m2s
+kube-system    kube-scheduler-controlplane            1/1     Running   0          8m16s                # static pod
+
+===============================================================================================================================
+
+Q:
+--
+What is the path of the directory holding the static pod definition files ?
+
+
+A:
+--
+
+Run the command `ps -aux | grep kubelet` and identify the config file - --config=/var/lib/kubelet/config.yaml. Then check in the config file for staticPodPath.
+
+$ cat /var/lib/kubelet/config.yaml
+
+```
+Path: /etc/kubernetes/manifests
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Create a static pod named static-busybox that uses the busybox image and the command sleep 1000
+
+
+A:
+--
+
+$ kubectl run --restart=Never --image=busybox static-busybox --dry-run=client -o yaml --command -- sleep 1000 > /etc/kubernetes/manifests/static-busybox.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: static-busybox
+  name: static-busybox
+spec:
+  containers:
+  - command:
+    - sleep
+    - "1000"
+    image: busybox
+    name: static-busybox
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Edit the image on the static pod to use busybox:1.28.4
+
+
+A:
+--
+
+$ kubectl run --restart=Never --image=busybox:1.28.4 static-busybox --dry-run=client -o yaml --command -- sleep 1000 > /etc/kubernetes/manifests/static-busybox.yaml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: static-busybox
+  name: static-busybox
+spec:
+  containers:
+  - command:
+    - sleep
+    - "1000"
+    image: busybox:1.28.4
+    name: static-busybox
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+We just created a new static pod named static-greenbox. Find it and delete it.
+This question is a bit tricky. But if you use the knowledge you gained in the previous questions in this lab, you should be able to find the answer to it.
+
+
+A:
+--
+
+1) First, let's identify the node in which the pod called static-greenbox is created. To do this, run:
+
+controlplane ~ ➜  kubectl get nodes -o wide
+
+NAME           STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION   CONTAINER-RUNTIME
+controlplane   Ready    control-plane   25m   v1.26.0   192.14.21.6   <none>        Ubuntu 20.04.5 LTS   5.4.0-1100-gcp   containerd://1.6.6
+node01         Ready    <none>          25m   v1.26.0   192.14.21.9   <none>        Ubuntu 20.04.5 LTS   5.4.0-1100-gcp   containerd://1.6.6
+
+
+2) From the result of this command, we can see that the pod is running on node01. Next, SSH to node01 and identify the path configured for static pods in this node.
+   Important: The path need not be /etc/kubernetes/manifests. Make sure to check the path configured in the kubelet configuration file.
+
+controlplane ~ ➜  ssh node01
+root@node01 ~ ➜  ps -ef |  grep /usr/bin/kubelet
+
+root        6166       1  0 04:31 ?        00:00:03 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.9
+root        7325    7155  0 04:35 pts/0    00:00:00 grep /usr/bin/kubelet
+
+node01 ~ ➜  grep -i staticpod /var/lib/kubelet/config.yaml
+
+staticPodPath: /etc/just-to-mess-with-you
+
+
+3) Here the staticPodPath is /etc/just-to-mess-with-you. Navigate to this directory and delete the YAML file:
+
+root@node01 ~ ➜  ls /etc/just-to-mess-with-you
+greenbox.yaml
+
+root@node01 ~ ➜  rm -rf /etc/just-to-mess-with-you/greenbox.yaml 
+root@node01 ~ ➜  exit
+
+logout
+Connection to node01 closed
+
+4) Exit out of node01 using CTRL + D or type exit. You should return to the controlplane node. Check if the static-greenbox pod has been deleted:
+
+controlplane ~ ➜  kubectl get pods --all-namespaces -o wide  | grep static-greenbox
