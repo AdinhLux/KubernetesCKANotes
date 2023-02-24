@@ -276,7 +276,7 @@ We have different controllers :
 
 Responsible for scheduling / deciding which pods goes on which node (it is `kubelet` who creates the pod on the ships).
 
-How does thse cheduler assign these pods ? It checks the hardware requirements (CPU, memory) and try yo identify the best node for the pod. By steps, by default :
+How does the scheduler assign these pods ? It checks the hardware requirements (CPU, memory) and try yo identify the best node for the pod. By steps, by default :
 
 ```
 1. Filter nodes (resource requirements)
@@ -453,4 +453,516 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: dev
+```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Scheduling
+
+> REMINDER : The scheduler is responsible for scheduling / deciding which pods goes on which node.
+
+&nbsp;
+
+### When there is no scheduler to monitor
+
+The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself vy setting the `nodeName` property in pod specification file.
+
+```bash
+🥃 ~ kubectl get pods
+
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   0/1     Pending   0          24s
+```
+
+&nbsp;
+
+### Manual scheduling
+
+Every POD has a `nodeName` property which is **NOT SET** by default :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # By default it is not specified
+      nodeName:
+```
+
+Kubernetes adds it automatically :
+
+- The scheduler goes through all the pods and looks for those that do not have this property set.
+- It then identifies the right node for the pod by running a scheduling algorithm.
+- Once identified, it schedules the pod on the node by setting the `nodeName` property by creating a binding object
+
+&nbsp;
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Manual_Scheduling_1.jpg" target="_blank">
+    <img src="assets/CKA_Manual_Scheduling_1.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **What if the pod is already created and we want to assign to a node ?**
+
+Kubernets will not allow us to modify the `nodeName` property of a pod. The solutions :
+
+- creating a binding object and send a POST request to the pod's binding API (thus mimicking what the scheduler does)
+
+```yaml
+### Pod-bind-definition.yml
+
+apiVersion: v1
+kind: Binding
+metadata:
+  name: nginx-bind
+target:
+  apiVersion: v1
+  kind: Node
+  # You target with the name of the node
+  name: node02
+# curl --header "Content-Type:application/json" --request POST --data '{"apiVersion":"v1", "kind": "Binding“ …. }' http://$SERVER/api/v1/namespaces/default/pods/$PODNAME/binding/
+```
+
+- OR running `kubectl replace --force -f pod-definition.yml` after having edited the pod-definition.yml
+
+&nbsp;
+
+### Labels and Selectors
+
+As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
+
+```bash
+# We are looking for PODs having this label 'env : dev'
+🥃 ~ kubectl get pods --selector env=dev
+
+NAME          READY   STATUS    RESTARTS   AGE
+db-1-b8zlr    1/1     Running   0          104s
+app-1-46r64   1/1     Running   0          104s
+db-1-gsvcl    1/1     Running   0          104s
+app-1-5wpqm   1/1     Running   0          104s
+db-1-qbg9k    1/1     Running   0          104s
+app-1-54w6j   1/1     Running   0          104s
+db-1-bx8rd    1/1     Running   0          103s
+
+
+# We want all Kubernetes objects which are part of the env: prod, the bu: finance and of tier: frontend
+🥃 ~ kubectl get all --selector env=prod,bu=finance,tier=frontend
+
+NAME              READY   STATUS    RESTARTS   AGE
+pod/app-1-zzxdf   1/1     Running   0          8m48s
+```
+
+&nbsp;
+
+### Taints and Tolerations (Pod to Node relationship)
+
+`Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
+
+It is used when we decide to use a node for a specific use case.
+
+&nbsp;
+
+#### **How can you restrict what pods are placed on what nodes ?**
+
+The `taint-effect` defines what would happen to the PODs if they do not tolerate the taint. There are 3 taint effects :
+
+- `NoSchedule` : pods will not be scheduled on the node
+- `PreferNoSchedule` : the system will try to avoid placing the pod on the node but it is not guaranteed
+- `NoExecute` : new pods will not be scheduled on the node and existing pods will be evicted if they don't tolerate the taint.
+
+```bash
+# Apply a taint to a node : kubectl taint nodes node-name key=value:taint-effect
+🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule
+
+# To untaint a node, add a "-" at the end
+🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule-
+```
+
+`Tolerations` are added to pods :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # Here, in DOUBLE QUOTES
+  tolerations:
+    - key: "app"
+      operator: "Equal"
+      value: "blue"
+      effect: "NoSchedule"
+```
+
+For information, a Taint is already applied to the `master` node when cluster is created, for avoiding PODs to be scheduled in this node.
+
+&nbsp;
+
+### Node selector & Node affinity
+
+We can set a limition on the pods so that they only run on particular nodes. There are 2 methods :
+
+- `Node selector` : we add a `nodeSelector` property at the pod-definition file. Before we must add labels to nodes.
+
+```bash
+# Add "size: Large" label to node : kubectl label nodes <node-name> <label-key>=<label-value>
+🥃 ~ kubectl label nodes node01 size=Large
+```
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # We specify the size as "Large" if we want to run on a node with high resources
+  # "size: Large" label in nodes MUST BE DEFINED prior to creating the pod
+  nodeSelector:
+    size: Large
+```
+
+&nbsp;
+
+- `Node affinity` : Node selector has its limitations because we just use a simple label, no advanced expressions : this is where we use the node affinities.
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+  # Node Affinity
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: size
+                # The 'In' operator ensures that the pod will be placed on a node whose label 'size' has any value in the list of values specified here
+                operator: In
+                # operator: NotIn
+                # operator: Exists -> only checks if label exists without comparing values
+                values:
+                  - Large
+                  - Medium
+```
+
+There are different types of affinity that define `the behaviour of the scheduler`. They come into play when for example there are no nodes with matching labels :
+
+- Available :
+  - `requiredDuringSchedulingIgnoredDuringExecution` : The pod will not be scheduled.
+  - `preferredDuringSchedulingIgnoredDuringExecution` : The pod will be placed in any available node
+
+> With **IgnoredDuringExecution**, the pods already created will not be impacted by any changes.
+
+- Planned :
+  - `requiredDuringSchedulingRequiredDuringExecution` : Any changes will evict pods not matching labels
+
+&nbsp;
+
+### Resources limit
+
+Kubernetes assumes that a pod or container within a pod requires 0.5 CPU and 256 Mb of mermory: this is known as the `resource request` for a container (min resources).
+
+For the POD to pick up those defaults you must have first set those as default values for request and limit by creating a `LimitRange` in that namespace.
+
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mem-limit-range
+spec:
+  limits:
+    - default:
+        cpu: 1
+        memory: 512Mi
+      defaultRequest:
+        cpu: 0.5
+        memory: 256Mi
+      type: Container
+```
+
+We can specify requirement and limit values by editing the pod definition file :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # Resources
+      resources:
+        requests:
+          # It is Gibibytes, not GigaBytes
+          memory: "1Gi"
+          cpu: 1
+        limits:
+          memory: "2Gi"
+          cpu: 2
+```
+
+&nbsp;
+
+### DaemonSets
+
+They are like `Replica Sets` as it helps you deploy multiple instances of pods `but it runs one copy of your pod on each node in your cluster`.
+
+Whenever a new node is added to/removed from the cluster, a replica of the pod is automatically added to/removed from that node.
+
+Some use cases of DS :
+
+- Deploying a monitoring agent in the form of pod (Monitoring solution)
+- Deploying a log collector (Logs Viewer)
+
+&nbsp;
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_1.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_1.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>The DS ensures that one copy of the pod is always present in all nodes in the cluster</i>
+</div>
+
+&nbsp;
+
+As discussed in the beginner's courses, one of the worker node components required on every node is a `kube-proxy` : **that is one good use case of DS**, the kube-proxy component can be deployed as a DS in the cluster.
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_2.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_2.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+Creating a DS definition file is like ReplicaSet
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Daemon_Sets_3.jpg" target="_blank">
+    <img src="assets/CKA_Daemon_Sets_3.jpg" alt="Settings_1" width="550" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### Kubectl
+
+- Listing Daemon Sets
+
+```
+🥃 ~ kubectl get daemonsets
+
+NAMESPACE      NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   kube-flannel-ds   1         1         1       1            1           <none>                   4m54s
+kube-system    kube-proxy        1         1         1       1            1           kubernetes.io/os=linux   4m57s
+```
+
+&nbsp;
+
+### Static PODs
+
+In a normal cluster, the `kubelet` relies on the **kube API server** for instructions on what pods to load on its node, based on a decision made by the **kube scheduler** which is stored in the **etcd data store**.
+
+<!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_1.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_1.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **What if there is no master node and only 1 worker node ?**
+
+The `kubelet` can manage a node independently : if we don't have the **kube API server** where we provide the **pod definition file**, we can configure the kubelet to read them `from a directory on a server, designated to store information about pods`.
+
+&nbsp;
+
+The kubelet periodically checks this directory for files, reads these files and creates pods on the host. Not only does it create the pod, it can ensure that the pod stays alive :
+
+- If the application crashes, the kubelet attempts to restart it
+- If we make a change to a file, the kubelet recreates the pod for those changes to take effect
+- If we remove a file from this directory, the kubelet destroys the pod automatically
+
+These created pods are known as `static PODs`.
+
+> We can not create a Replica Set, Deployment or Service with a kubelet alone (we need the whole architecture)
+
+> The directory could be any directory on the host, and the location is passed in to the kubelet as an option while running the service. The option is called **--pod-manifest-path** but we could instead provide it thorugh a configuration file by passing the argument **--config**
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_2.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_2.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+The kubelet can create both kind of pods at the same time (the static and the ones from Kube API server). The API server is aware of the static ones (a ready-only mirrored one is created in the Kube API server).
+
+As `static PODs` are not dependent on the **Kubernetes control plane**, we can use them to deploy control plane components itself as pods on a node.
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_3.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_3.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>This way, we don't have to download the binaries, configure services, or worry about the services crashing (as static pods they will be automatically restarted by the kubelet)</i>
+</div>
+
+&nbsp;
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Static_Pods_4.jpg" target="_blank">
+    <img src="assets/CKA_Static_Pods_4.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+### Multiple schedulers
+
+**If you need to schedule specific applications**, you can write your own Kubernetes scheduler program, package it and deploy it as the default scheduler or as an additional scheduler in the Kubernetes cluster.
+
+> So Kubernetes cluster can have multiple schedulers at a time : when creating a pod or deployment, we can instruct Kubernetes to have the pod scheduled by a specific scheduler.
+
+&nbsp;
+
+- To deploy the custom scheduler as a pod
+
+```yaml
+### my-custom-scheduler.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-custom-scheduler
+  namespace: kube-system
+spec:
+  containers:
+    - command:
+        - kube-scheduler
+        - --address=127.0.0.1
+        # File having the authentication info to connect to Kube API server
+        - --kubeconfig=/etc/kubernetes/scheduler.conf
+        - --config=/etc/kubernetes/my-scheduler-config.yaml
+      image: k8s.gcr.io/kube-scheduler-amd64:v1.11.3
+      name: kube-scheduler
+```
+
+```yaml
+### my-scheduler-config.yaml
+
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+profiles:
+  - schedulerName: my-scheduler
+# Used when we have multiple  copies of the scheduler running on different master nodes as high-availability setup.
+# If multiple copies of the same scheduler are running on different nodes, only one can be active at a time.
+# That's where the leaderElection helps in choosing a leader whol will lead the scheduling activities
+leaderElection:
+  leaderElect: true
+  resourceNamespace: kube-system
+  resourceName: lock-object-my-scheduler
+```
+
+- To create a pod with a specific schduler
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    name: nginx
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx
+      ports:
+        - containerPort: 8080
+      # Choose scheduler
+      schedulerName: my-custom-scheduler
+```
+
+- To know which scheduler picked up (see the REASON = Scheduled)
+
+```bash
+🥃 ~ kubectl get events -o wide
+
+LAST SEEN   TYPE      REASON                    OBJECT              SUBOBJECT                SOURCE                                    MESSAGE                                                                              FIRST SEEN   COUNT   NAME
+18s         Normal    Scheduled                 pod/nginx                                    my-scheduler, my-scheduler-my-scheduler   Successfully assigned default/nginx to controlplane                                  18s          1       nginx.1746be500cbc7585
+```
+
+- To check scheduler logs
+
+```bash
+🥃 ~ kubectl logs my-scheduler --namespace=kube-system
 ```

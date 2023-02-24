@@ -1,0 +1,58 @@
+Q:
+--
+What is the name of the POD that deploys the default kubernetes scheduler in this environment?
+
+
+A:
+--
+
+$ kubectl get pods --namespace=kube-system
+
+NAME                                   READY   STATUS    RESTARTS   AGE
+kube-scheduler-controlplane            1/1     Running   0          3m37s
+
+===============================================================================================================================
+
+Q:
+--
+What is the image used to deploy the kubernetes scheduler? Inspect the kubernetes scheduler pod and identify the image
+
+
+A:
+--
+
+$ kubectl describe pod kube-scheduler-controlplane --namespace=kube-system
+
+
+===============================================================================================================================
+
+Q:
+--
+Let's create a configmap that the new scheduler will employ using the concept of ConfigMap as a volume.
+We have already given a configMap definition file called my-scheduler-configmap.yaml at /root/ path that will create a configmap with name my-scheduler-config using the content of file /root/my-scheduler-config.yaml.
+
+
+A:
+--
+
+$ kubectl create -f /root/my-scheduler-configmap.yaml
+	
+```yaml
+apiVersion: v1
+data:
+  my-scheduler-config.yaml: |
+    apiVersion: kubescheduler.config.k8s.io/v1beta2
+    kind: KubeSchedulerConfiguration
+    profiles:
+      - schedulerName: my-scheduler
+    leaderElection:
+      leaderElect: false
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: my-scheduler-config
+  namespace: kube-system
+```
+	
+	
+===============================================================================================================================
