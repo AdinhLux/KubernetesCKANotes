@@ -48,9 +48,9 @@ weave-net-ls9d9                      2/2     Running   0             22h
 
 &nbsp;
 
-### ETCD
+### <ins>ETCD</ins>
 
-The `etcd` data store stores information regarding the cluster such as :
+The `etcd` key-value store stores cluster information and state, such as :
 
 ```
 - nodes
@@ -63,13 +63,15 @@ The `etcd` data store stores information regarding the cluster such as :
 - others
 ```
 
-Each data you get with `kubectl get` command is from the etcd server. Every change you make in the cluster (like adding nodes, deploying pods, etc.) are updated in the etcd server
+Each data you get with `kubectl get` command is from the etcd server. Every change you make in the cluster (like adding nodes, deploying pods, etc.) are <ins>**updated in the ETCD server**</ins>.
+
+&nbsp;
 
 Etcd listens to the `advertise client url` on port `2379`.
 
 > If you deploy a cluster from scratch without the `Kubeadm` tool, you have to download the binary separately.
 
-If you have deployed an HA environment, make sure that etcd instances know about each other by specifyin in the service the different instances of the etcd service.
+If you have deployed an HA environment, make sure that **ETCD instances know about each other** by specifying in the service the different instances of the etcd service.
 
 &nbsp;
 
@@ -87,7 +89,7 @@ If you have deployed an HA environment, make sure that etcd instances know about
 
 #### **Commands**
 
-https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
+> https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
 
 - Grab the Client certificate and key details of the API-server
 
@@ -173,9 +175,13 @@ https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
 
 &nbsp;
 
-### API server
+### <ins>API server</ins>
 
-The primary management component in Kubernetes.
+The primary management component in Kubernetes. Responsible for all orchestration operations with the cluster.
+
+- Exposing Kube-API/Mgmt
+- Monitors state of Cluster
+- Gives work to worker nodes
 
 When running `kubectl` command, the kubectl utility is reaching to the kube-apiserver by :
 
@@ -216,7 +222,7 @@ Here, the API server will create a POD :
 
 &nbsp;
 
-### Controller manager
+### <ins>Controller manager</ins>
 
 It is a process that continuously monitors the state of various components within the system and works towards bringing the whole system to the desired functioning state.
 
@@ -226,13 +232,15 @@ It does that through the `API server`.
 
 #### **Node-Controller**
 
-The Node-Controller :
+This controller takes care of nodes, onboarding new nodes to cluster and handling situation where nodes become unavailable and gets destroyed.
+
+&nbsp;
+
+Below we have this example :
 
 - tests the status of the nodes every 5 seconds.
 - waits for 40 seconds before declaring a node unreachable.
 - After making it unreachable, it gives it 5 minutes to come back up (if it doesn't it removes the PODs assigned to this node and provision them on the healthy ones, **ONLY** if the PODs are part of a replica set).\*
-
-&nbsp;
 
 <!--- Center image --->
 <div align="center">
@@ -966,3 +974,50 @@ LAST SEEN   TYPE      REASON                    OBJECT              SUBOBJECT   
 ```bash
 🥃 ~ kubectl logs my-scheduler --namespace=kube-system
 ```
+
+When creating different schedulers, you can configure them by disabling some plugins (see `Configuring Scheduler Profiles` on udemy)
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Logging & Monitoring
+
+> How do we monitor resource consumption on Kubernetes ? In the current version, Kubernetes doesn't provide a built-in solution.
+
+We have to use `3rd party solution to create our Metric server`
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Monitor_Logs_1.jpg" target="_blank">
+    <img src="assets/CKA_Monitor_Logs_1.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+### <ins>Node-level metric</ins>
+
+We can get :
+
+- the number of nodes in the cluster
+- how many of them are healthy
+
+&nbsp;
+
+### <ins>Performance-level metric</ins>
+
+We can get :
+
+- CPU, memory, network and disc utilization
+
+&nbsp;
+
+### <ins>Pod-level metric</ins>
+
+We can get :
+
+- the number of pods
+- the preformance metrics of each pod
