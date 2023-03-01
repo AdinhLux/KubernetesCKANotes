@@ -1,0 +1,145 @@
+Q:
+--
+Deploy the metrics-server by creating all the components downloaded.
+
+
+A:
+--
+
+1) 
+
+$ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+
+
+2) 
+
+$ git clone https://github.com/kodekloudhub/kubernetes-metrics-server.git
+$ cd kubernetes-metrics-server/
+$ ls
+
+aggregated-metrics-reader.yaml  auth-reader.yaml         metrics-server-deployment.yaml  README.md
+auth-delegator.yaml             metrics-apiservice.yaml  metrics-server-service.yaml     resource-reader.yaml
+
+
+$ kubectl create -f .
+
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+serviceaccount/metrics-server created
+deployment.apps/metrics-server created
+service/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the node that consumes the most CPU(cores).
+
+
+A:
+--
+Here we have used 'head -1' command to print the pod first in the order, which is the one that uses the most CPU(cores).
+
+$ kubectl top node --sort-by='cpu' --no-headers | head -1
+
+controlplane   215m   0%    1189Mi   0%
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the node that consumes the most Memory(bytes).
+
+
+A:
+--
+Here we have used head -1 command to print the node first in the sorted order, which is the one that uses the most Memory(bytes).
+
+$ kubectl top node --sort-by='memory' --no-headers | head -1
+
+controlplane   209m   0%    1194Mi   0%    
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the POD that consumes the most Memory(bytes).
+
+
+A:
+--
+Here we have used head -1 command to print the pod first in the order, which is the one that uses the most Memory(bytes)
+
+$ kubectl top pod --sort-by='memory' --no-headers | head -1
+
+rabbit     102m   252Mi   
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the POD that consumes the least CPU(cores).
+
+
+A:
+--
+Here we have used tail -1 to list the last pod in the list, which is the pod that uses the least
+
+$ kubectl top pod --sort-by='cpu' --no-headers | tail -1
+
+lion       1m     18Mi 
+
+
+===============================================================================================================================
+
+Q:
+--
+A user - USER5 - has expressed concerns accessing the application. Identify the cause of the issue.
+
+
+A:
+--
+$  kubectl get pod
+
+NAME       READY   STATUS    RESTARTS   AGE
+webapp-1   1/1     Running   0          6m57s
+
+$ kubectl logs webapp-1 | grep USER5
+
+[2023-03-01 14:55:07,967] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+[2023-03-01 14:55:12,973] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+
+
+===============================================================================================================================
+===============================================================================================================================
+===============================================================================================================================
+$ kubectl top pod
+
+NAME       CPU(cores)   MEMORY(bytes)   
+elephant   14m          31Mi            
+lion       1m           18Mi            
+rabbit     104m         252Mi   
+
+
+$ kubectl top node
+NAME           CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+controlplane   255m         0%     1197Mi          0%        
+node01         21m          0%     355Mi           0%     

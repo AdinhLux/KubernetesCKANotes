@@ -222,7 +222,7 @@ Here, the API server will create a POD :
 
 &nbsp;
 
-### <ins>Controller manager</ins>
+### <ins>Controller Manager</ins>
 
 It is a process that continuously monitors the state of various components within the system and works towards bringing the whole system to the desired functioning state.
 
@@ -280,7 +280,7 @@ We have different controllers :
 
 &nbsp;
 
-### Scheduler
+### <ins>Kube Scheduler</ins>
 
 Responsible for scheduling / deciding which pods goes on which node (it is `kubelet` who creates the pod on the ships).
 
@@ -302,7 +302,7 @@ This filter can be customized and we also can create our own scheduler.
 
 &nbsp;
 
-### Kubelet
+### <ins>Kubelet</ins>
 
 - They register a node in a Kubernetes cluster.
 - When receiving instructions to load a container or a pod on the node, they request the container RE to pull the required image and run the instance
@@ -998,26 +998,161 @@ We have to use `3rd party solution to create our Metric server`
 
 &nbsp;
 
-### <ins>Node-level metric</ins>
+### Metrics Server (old name : Heapster)
 
-We can get :
+We can have **one Metrics Server per Kubernetes cluster**.
 
-- the number of nodes in the cluster
-- how many of them are healthy
+It retrieves metrics from each of the Kubernetes nodes and pods, aggregates them and store them in memory.
 
-&nbsp;
-
-### <ins>Performance-level metric</ins>
-
-We can get :
-
-- CPU, memory, network and disc utilization
+- Node-level metric :
+  - the number of nodes in the cluster
+  - how many of them are healthy
 
 &nbsp;
 
-### <ins>Pod-level metric</ins>
+- Performance-level metric
+  - CPU, memory, network and disc utilization
 
-We can get :
+&nbsp;
 
-- the number of pods
-- the preformance metrics of each pod
+- Pod-level metric
+  - the number of pods
+  - the preformance metrics of each pod
+
+&nbsp;
+
+`Metrics Server` is only an in-memory monitoring solution : it does not store the metrics on the disk.
+
+It is through the a subcomponent of `Kubelet` agent, called `caAdvisor` (container advisor) that we retrieve performance metrics from pods and expose them through the `kubelet API`.
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Monitor_Logs_2.jpg" target="_blank">
+    <img src="assets/CKA_Monitor_Logs_2.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+- To view the cluster performance by nodes
+
+```bash
+# You have to download the component
+
+# If you use one master node, run this command to create the metrics-server :
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# f you have HA (High availability) cluster, use this :
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/high-availability.yaml
+vagrant@kubemaster🥃 ~ kubectl top node
+
+error: Metrics API not available
+
+vagrant@kubemaster🥃 ~ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+
+# Be sure that nodes are in Ready status
+vagrant@kubemaster🥃 ~ kubectl get nodes
+
+NAME         STATUS   ROLES           AGE   VERSION
+kubemaster   Ready    control-plane   11d   v1.26.1
+kubenode01   Ready    <none>          11d   v1.26.1
+kubenode02   Ready    <none>          11d   v1.26.1
+
+# Check if metrics server is running
+vagrant@kubemaster🥃 ~ kubectl get deploy,svc -n kube-system | egrep metrics-server
+
+deployment.apps/metrics-server   0/1     1            0           3h9m
+service/metrics-server   ClusterIP   10.97.123.56   <none>        443/TCP                  3h9m
+
+vagrant@kubemaster🥃 ~ kubectl get pods -n kube-system | grep metrics-server
+
+metrics-server-68bfd5c84d-rwzx4      0/1     Running   0                3h9m
+
+# The kube-apiserver must enable an aggregation layer. We have to configure "--kubelet-insecure-tls"
+vagrant@kubemaster🥃 ~ kubectl top node
+
+Error from server (ServiceUnavailable): the server is currently unable to handle the request (get nodes.metrics.k8s.io)
+
+vagrant@kubemaster🥃 ~ kubectl edit deployment.apps/metrics-server -n kube-system
+
+deployment.apps/metrics-server edited
+
+# You have to wait for the upadte of deployment before running the command
+vagrant@kubemaster🥃 ~ kubectl top node
+
+NAME         CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+kubemaster   275m         13%    807Mi           42%
+kubenode01   23m          1%     599Mi           31%
+kubenode02   30m          1%     288Mi           15%
+```
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Monitor_Logs_3.jpg" target="_blank">
+    <img src="assets/CKA_Monitor_Logs_3.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We have to add <b>--kubelet-insecure-tls</b> property when editing the metrics server configuration</i>
+</div>
+
+&nbsp;
+
+### Application Logs
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl run nginx --image=nginx
+pod/nginx created
+
+vagrant@kubemaster🥃 ~ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          23s
+
+vagrant@kubemaster🥃 ~ kubectl edit pods nginx
+
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2023-03-01T14:41:02Z"
+  labels:
+    run: nginx
+  name: nginx
+  namespace: default
+  resourceVersion: "31228"
+  uid: 7f83c736-b1b7-4bb0-955d-033bc3ddc9e6
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: Always
+    name: nginx
+
+# kubectl logs <POD_NAME> <CONTAINER_NAME>
+vagrant@kubemaster🥃 ~ kubectl logs nginx nginx
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2023/03/01 14:41:28 [notice] 1#1: using the "epoll" event method
+2023/03/01 14:41:28 [notice] 1#1: nginx/1.23.3
+2023/03/01 14:41:28 [notice] 1#1: built by gcc 10.2.1 20210110 (Debian 10.2.1-6)
+2023/03/01 14:41:28 [notice] 1#1: OS: Linux 4.15.0-204-generic
+2023/03/01 14:41:28 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2023/03/01 14:41:28 [notice] 1#1: start worker processes
+2023/03/01 14:41:28 [notice] 1#1: start worker process 29
+2023/03/01 14:41:28 [notice] 1#1: start worker process 30
+```
