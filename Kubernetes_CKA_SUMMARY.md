@@ -1156,3 +1156,57 @@ vagrant@kubemaster🥃 ~ kubectl logs nginx nginx
 2023/03/01 14:41:28 [notice] 1#1: start worker process 29
 2023/03/01 14:41:28 [notice] 1#1: start worker process 30
 ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Application Lidecycle management
+
+### Commands and arguments in a POD definition file
+
+&nbsp;
+
+> You need to have reviewed Docker commands lesson
+
+The purpose here is to translate Docker commands into POD files. Below an example : we want to run a Ubuntu container where **it will sleep for 10 secondes after starting** :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper-pod
+spec:
+  containers:
+    - name: ubuntu-sleeper-container
+      image: ubuntu-sleeper
+      # Anything appended to the docker run command will go into the args property
+      # Based on the Dockerfile below, we pass the value 10 in the CMD
+      args: ["10"]
+      # To override an ENTRYPOINT in a container
+      command: ["sleep2.0"]
+```
+
+```Dockerfile
+### Dockerfile
+
+## docker run ubuntu-sleeper sleep 10  ->  docker run <IMAGE_NAME> <CMD>
+# FROM Ubuntu
+# CMD sleep 10
+# CMD ["sleep", "10"]  ->  CMD ["command","param1"]
+
+
+## docker run ubuntu-sleeper 10  ->  sleep is now executed automatically, as ENTRYPOINT
+FROM Ubuntu
+# We specify the command to run automatically, avoiding to declare it in cmd line
+ENTRYPOINT [“sleep”]
+# Value by default if we don't specify it in the cmd line
+CMD ["10"]
+
+## To override a running container, update the entrypoint like this :
+# docker run --entrypoint sleep2.0 ubuntu-sleeper 10
+```
