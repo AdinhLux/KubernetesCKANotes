@@ -24,7 +24,7 @@ Admission Controllers
 
 ## Cluster Architecture
 
-#### Commands
+#### **Commands**
 
 - If you have deploy Kubernetes with `Kubeadm`, you can see the different components in specified PODs :
 
@@ -48,7 +48,7 @@ weave-net-ls9d9                      2/2     Running   0             22h
 
 &nbsp;
 
-### <ins>ETCD</ins>
+### <ins>**ETCD**</ins>
 
 The `etcd` key-value store stores cluster information and state, such as :
 
@@ -65,9 +65,9 @@ The `etcd` key-value store stores cluster information and state, such as :
 
 Each data you get with `kubectl get` command is from the etcd server. Every change you make in the cluster (like adding nodes, deploying pods, etc.) are <ins>**updated in the ETCD server**</ins>.
 
-&nbsp;
-
 Etcd listens to the `advertise client url` on port `2379`.
+
+&nbsp;
 
 > If you deploy a cluster from scratch without the `Kubeadm` tool, you have to download the binary separately.
 
@@ -87,9 +87,11 @@ If you have deployed an HA environment, make sure that **ETCD instances know abo
 
 &nbsp;
 
-#### **Commands**
+> #### Kubectl
+>
+> ---
 
-> https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
+https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
 
 - Grab the Client certificate and key details of the API-server
 
@@ -175,7 +177,7 @@ If you have deployed an HA environment, make sure that **ETCD instances know abo
 
 &nbsp;
 
-### <ins>API server</ins>
+### <ins>**API server**</ins>
 
 The primary management component in Kubernetes. Responsible for all orchestration operations with the cluster.
 
@@ -222,7 +224,7 @@ Here, the API server will create a POD :
 
 &nbsp;
 
-### <ins>Controller Manager</ins>
+### <ins>**Controller Manager**</ins>
 
 It is a process that continuously monitors the state of various components within the system and works towards bringing the whole system to the desired functioning state.
 
@@ -280,7 +282,7 @@ We have different controllers :
 
 &nbsp;
 
-### <ins>Kube Scheduler</ins>
+### <ins>**Kube-Scheduler**</ins>
 
 Responsible for scheduling / deciding which pods goes on which node (it is `kubelet` who creates the pod on the ships).
 
@@ -302,7 +304,7 @@ This filter can be customized and we also can create our own scheduler.
 
 &nbsp;
 
-### <ins>Kubelet</ins>
+### <ins>**Kubelet**</ins>
 
 - They register a node in a Kubernetes cluster.
 - When receiving instructions to load a container or a pod on the node, they request the container RE to pull the required image and run the instance
@@ -317,7 +319,7 @@ This filter can be customized and we also can create our own scheduler.
 
 &nbsp;
 
-### Kube-proxy
+### <ins>**Kube-Proxy**</ins>
 
 - Within a Kubernetes cluster, every pod can reach every other pod. It is possble by deploying a `POD virtual network` that spans across all the nodes in the cluster to which all po ds connect to.
 
@@ -349,6 +351,10 @@ This filter can be customized and we also can create our own scheduler.
 <div align="center">
   <i>In this case, the kube-proxy creates an <b>IP table rule</b> on each node in the cluster to forward traffic (from <b>10.32.0.14</b>) heading to the IP service (<b>10.96.0.12</b>) to the IP of the actual pod (<b>10.32.0.15</b>)</i>
 </div>
+
+&nbsp;
+
+---
 
 &nbsp;
 
@@ -400,7 +406,9 @@ In each namespace, you define a specific `policy` where you assign a quota of re
 
 &nbsp;
 
-#### Kubectl
+> #### Kubectl
+>
+> ---
 
 - Display Pods in the `kube-system` namespace
 
@@ -427,7 +435,9 @@ vpnkit-controller                        1/1     Running   1 (19s ago)   2d7h
 
 &nbsp;
 
-#### YAML
+> #### YAML
+>
+> ---
 
 You can run `kubectl create -f pod-definition.yml --namespace=dev` or also define the `namespace` property in Yaml file for **creating a POD in a specific namespace** :
 
@@ -475,7 +485,7 @@ metadata:
 
 &nbsp;
 
-### When there is no scheduler to monitor
+### <ins>**When there is no scheduler to monitor**</ins>
 
 The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself vy setting the `nodeName` property in pod specification file.
 
@@ -488,7 +498,7 @@ nginx   0/1     Pending   0          24s
 
 &nbsp;
 
-### Manual scheduling
+### <ins>**Manual scheduling**</ins>
 
 Every POD has a `nodeName` property which is **NOT SET** by default :
 
@@ -553,7 +563,7 @@ target:
 
 &nbsp;
 
-### Labels and Selectors
+### <ins>**Labels and Selectors**</ins>
 
 As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
 
@@ -580,7 +590,7 @@ pod/app-1-zzxdf   1/1     Running   0          8m48s
 
 &nbsp;
 
-### Taints and Tolerations (Pod to Node relationship)
+### <ins>**Taints and Tolerations (Pod to Node relationship)**</ins>
 
 `Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
 
@@ -633,7 +643,7 @@ For information, a Taint is already applied to the `master` node when cluster is
 
 &nbsp;
 
-### Node selector & Node affinity
+### <ins>**Node selector & Node affinity**</ins>
 
 We can set a limition on the pods so that they only run on particular nodes. There are 2 methods :
 
@@ -706,14 +716,18 @@ There are different types of affinity that define `the behaviour of the schedule
   - `requiredDuringSchedulingIgnoredDuringExecution` : The pod will not be scheduled.
   - `preferredDuringSchedulingIgnoredDuringExecution` : The pod will be placed in any available node
 
+&nbsp;
+
 > With **IgnoredDuringExecution**, the pods already created will not be impacted by any changes.
+
+&nbsp;
 
 - Planned :
   - `requiredDuringSchedulingRequiredDuringExecution` : Any changes will evict pods not matching labels
 
 &nbsp;
 
-### Resources limit
+### <ins>**Resources limit**</ins>
 
 Kubernetes assumes that a pod or container within a pod requires 0.5 CPU and 256 Mb of mermory: this is known as the `resource request` for a container (min resources).
 
@@ -765,7 +779,7 @@ spec:
 
 &nbsp;
 
-### DaemonSets
+### <ins>**DaemonSets**</ins>
 
 They are like `Replica Sets` as it helps you deploy multiple instances of pods `but it runs one copy of your pod on each node in your cluster`.
 
@@ -813,7 +827,9 @@ Creating a DS definition file is like ReplicaSet
 
 &nbsp;
 
-#### Kubectl
+> #### Kubectl
+>
+> ---
 
 - Listing Daemon Sets
 
@@ -854,6 +870,8 @@ The kubelet periodically checks this directory for files, reads these files and 
 
 These created pods are known as `static PODs`.
 
+&nbsp;
+
 > We can not create a Replica Set, Deployment or Service with a kubelet alone (we need the whole architecture)
 
 > The directory could be any directory on the host, and the location is passed in to the kubelet as an option while running the service. The option is called **--pod-manifest-path** but we could instead provide it thorugh a configuration file by passing the argument **--config**
@@ -893,7 +911,7 @@ As `static PODs` are not dependent on the **Kubernetes control plane**, we can u
 
 &nbsp;
 
-### Multiple schedulers
+### <ins>**Multiple schedulers**</ins>
 
 **If you need to schedule specific applications**, you can write your own Kubernetes scheduler program, package it and deploy it as the default scheduler or as an additional scheduler in the Kubernetes cluster.
 
@@ -998,7 +1016,7 @@ We have to use `3rd party solution to create our Metric server`
 
 &nbsp;
 
-### Metrics Server (old name : Heapster)
+### <ins>**Metrics Server (old name : Heapster)**</ins>
 
 We can have **one Metrics Server per Kubernetes cluster**.
 
@@ -1109,7 +1127,7 @@ kubenode02   30m          1%     288Mi           15%
 
 &nbsp;
 
-### Application Logs
+### <ins>**Application Logs**</ins>
 
 ```bash
 vagrant@kubemaster🥃 ~ kubectl run nginx --image=nginx
@@ -1165,7 +1183,9 @@ vagrant@kubemaster🥃 ~ kubectl logs nginx nginx
 
 ## Application Lidecycle management
 
-### Commands and arguments in a POD definition file
+&nbsp;
+
+### <ins>**Commands and arguments in a POD definition file**</ins>
 
 &nbsp;
 
@@ -1210,3 +1230,140 @@ CMD ["10"]
 ## To override a running container, update the entrypoint like this :
 # docker run --entrypoint sleep2.0 ubuntu-sleeper 10
 ```
+
+&nbsp;
+
+### <ins>**ENV variables in Kubernetes**</ins>
+
+```yaml
+### pod-definition.yml
+# docker run -e APP_COLOR=pink simple-webapp-container
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-webapp-pod
+spec:
+  containers:
+    - name: simple-webapp-container
+      image: simple-webapp
+      ports:
+        - containerPort: 8080
+      # env is an array. Each item has a name and value property
+      env:
+        - name: APP_COLOR
+          value: pink
+```
+
+There are 3 ways to configure an `env` value :
+
+<div align="center">
+  <a href="CKA_LifeCycle_1.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_1.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **ConfigMaps**
+
+We'll see how to work with configuration data in Kubernetes. It provides its utility by **avoiding to write a liste of `env` into the POD file** :
+
+- We create a `ConfigMap` file by using an imperative or declarative approach
+- We inject it into the POD
+
+```bash
+# IMPERATIVE WAY
+# from-literal is used to specify the key value pairs in the command itself
+
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+<CONFIG-NAME> --from-literal=<KEY>=<VALUE>
+
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+app-config --from-literal=APP_COLOR=blue \
+--from-literal=APP_MODE=prod
+
+# If we have too many env variables, we can store them into app_config.properties
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+app-config --from-file=app_config.properties
+```
+
+```yaml
+# DECLARATIVE WAY : we create a config-map.yaml
+# kubectl create -f config-map.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+# We don't have the spec property, compared to the POD, RS or Deployment
+data:
+  APP_COLOR: blue
+  APP_MODE: prod
+```
+
+You can create as many `ConfigMap` files as you want.
+
+<div align="center">
+  <a href="CKA_LifeCycle_2.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_2.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
+- List config maps
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get configmaps
+
+NAME               DATA   AGE
+kube-root-ca.crt   1      20m
+db-config          3      14s
+```
+
+- View details to list key-value pairs
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe configmaps db-config
+
+Name:         db-config
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+DB_HOST:
+----
+SQL01.example.com
+DB_NAME:
+----
+SQL01
+DB_PORT:
+----
+3306
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+&nbsp;
+
+3 ways to inject into POD :
+
+<div align="center">
+  <a href="CKA_LifeCycle_3.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_3.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **Secrets**
