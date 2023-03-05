@@ -24,7 +24,7 @@ Admission Controllers
 
 ## Cluster Architecture
 
-#### Commands
+#### **Commands**
 
 - If you have deploy Kubernetes with `Kubeadm`, you can see the different components in specified PODs :
 
@@ -48,7 +48,7 @@ weave-net-ls9d9                      2/2     Running   0             22h
 
 &nbsp;
 
-### <ins>ETCD</ins>
+### <ins>**ETCD**</ins>
 
 The `etcd` key-value store stores cluster information and state, such as :
 
@@ -65,9 +65,9 @@ The `etcd` key-value store stores cluster information and state, such as :
 
 Each data you get with `kubectl get` command is from the etcd server. Every change you make in the cluster (like adding nodes, deploying pods, etc.) are <ins>**updated in the ETCD server**</ins>.
 
-&nbsp;
-
 Etcd listens to the `advertise client url` on port `2379`.
+
+&nbsp;
 
 > If you deploy a cluster from scratch without the `Kubeadm` tool, you have to download the binary separately.
 
@@ -87,9 +87,11 @@ If you have deployed an HA environment, make sure that **ETCD instances know abo
 
 &nbsp;
 
-#### **Commands**
+> #### Kubectl
+>
+> ---
 
-> https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
+https://technekey.com/check-whats-inside-the-etcd-database-in-kubernetes/
 
 - Grab the Client certificate and key details of the API-server
 
@@ -175,7 +177,7 @@ If you have deployed an HA environment, make sure that **ETCD instances know abo
 
 &nbsp;
 
-### <ins>API server</ins>
+### <ins>**API server**</ins>
 
 The primary management component in Kubernetes. Responsible for all orchestration operations with the cluster.
 
@@ -222,7 +224,7 @@ Here, the API server will create a POD :
 
 &nbsp;
 
-### <ins>Controller manager</ins>
+### <ins>**Controller Manager**</ins>
 
 It is a process that continuously monitors the state of various components within the system and works towards bringing the whole system to the desired functioning state.
 
@@ -280,7 +282,7 @@ We have different controllers :
 
 &nbsp;
 
-### Scheduler
+### <ins>**Kube-Scheduler**</ins>
 
 Responsible for scheduling / deciding which pods goes on which node (it is `kubelet` who creates the pod on the ships).
 
@@ -302,7 +304,7 @@ This filter can be customized and we also can create our own scheduler.
 
 &nbsp;
 
-### Kubelet
+### <ins>**Kubelet**</ins>
 
 - They register a node in a Kubernetes cluster.
 - When receiving instructions to load a container or a pod on the node, they request the container RE to pull the required image and run the instance
@@ -317,7 +319,7 @@ This filter can be customized and we also can create our own scheduler.
 
 &nbsp;
 
-### Kube-proxy
+### <ins>**Kube-Proxy**</ins>
 
 - Within a Kubernetes cluster, every pod can reach every other pod. It is possble by deploying a `POD virtual network` that spans across all the nodes in the cluster to which all po ds connect to.
 
@@ -349,6 +351,10 @@ This filter can be customized and we also can create our own scheduler.
 <div align="center">
   <i>In this case, the kube-proxy creates an <b>IP table rule</b> on each node in the cluster to forward traffic (from <b>10.32.0.14</b>) heading to the IP service (<b>10.96.0.12</b>) to the IP of the actual pod (<b>10.32.0.15</b>)</i>
 </div>
+
+&nbsp;
+
+---
 
 &nbsp;
 
@@ -400,7 +406,9 @@ In each namespace, you define a specific `policy` where you assign a quota of re
 
 &nbsp;
 
-#### Kubectl
+> #### Kubectl
+>
+> ---
 
 - Display Pods in the `kube-system` namespace
 
@@ -427,7 +435,9 @@ vpnkit-controller                        1/1     Running   1 (19s ago)   2d7h
 
 &nbsp;
 
-#### YAML
+> #### YAML
+>
+> ---
 
 You can run `kubectl create -f pod-definition.yml --namespace=dev` or also define the `namespace` property in Yaml file for **creating a POD in a specific namespace** :
 
@@ -475,7 +485,7 @@ metadata:
 
 &nbsp;
 
-### When there is no scheduler to monitor
+### <ins>**When there is no scheduler to monitor**</ins>
 
 The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself vy setting the `nodeName` property in pod specification file.
 
@@ -488,7 +498,7 @@ nginx   0/1     Pending   0          24s
 
 &nbsp;
 
-### Manual scheduling
+### <ins>**Manual scheduling**</ins>
 
 Every POD has a `nodeName` property which is **NOT SET** by default :
 
@@ -553,7 +563,7 @@ target:
 
 &nbsp;
 
-### Labels and Selectors
+### <ins>**Labels and Selectors**</ins>
 
 As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
 
@@ -580,7 +590,7 @@ pod/app-1-zzxdf   1/1     Running   0          8m48s
 
 &nbsp;
 
-### Taints and Tolerations (Pod to Node relationship)
+### <ins>**Taints and Tolerations (Pod to Node relationship)**</ins>
 
 `Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
 
@@ -633,7 +643,7 @@ For information, a Taint is already applied to the `master` node when cluster is
 
 &nbsp;
 
-### Node selector & Node affinity
+### <ins>**Node selector & Node affinity**</ins>
 
 We can set a limition on the pods so that they only run on particular nodes. There are 2 methods :
 
@@ -706,14 +716,18 @@ There are different types of affinity that define `the behaviour of the schedule
   - `requiredDuringSchedulingIgnoredDuringExecution` : The pod will not be scheduled.
   - `preferredDuringSchedulingIgnoredDuringExecution` : The pod will be placed in any available node
 
+&nbsp;
+
 > With **IgnoredDuringExecution**, the pods already created will not be impacted by any changes.
+
+&nbsp;
 
 - Planned :
   - `requiredDuringSchedulingRequiredDuringExecution` : Any changes will evict pods not matching labels
 
 &nbsp;
 
-### Resources limit
+### <ins>**Resources limit**</ins>
 
 Kubernetes assumes that a pod or container within a pod requires 0.5 CPU and 256 Mb of mermory: this is known as the `resource request` for a container (min resources).
 
@@ -765,7 +779,7 @@ spec:
 
 &nbsp;
 
-### DaemonSets
+### <ins>**DaemonSets**</ins>
 
 They are like `Replica Sets` as it helps you deploy multiple instances of pods `but it runs one copy of your pod on each node in your cluster`.
 
@@ -813,7 +827,9 @@ Creating a DS definition file is like ReplicaSet
 
 &nbsp;
 
-#### Kubectl
+> #### Kubectl
+>
+> ---
 
 - Listing Daemon Sets
 
@@ -854,6 +870,8 @@ The kubelet periodically checks this directory for files, reads these files and 
 
 These created pods are known as `static PODs`.
 
+&nbsp;
+
 > We can not create a Replica Set, Deployment or Service with a kubelet alone (we need the whole architecture)
 
 > The directory could be any directory on the host, and the location is passed in to the kubelet as an option while running the service. The option is called **--pod-manifest-path** but we could instead provide it thorugh a configuration file by passing the argument **--config**
@@ -893,7 +911,7 @@ As `static PODs` are not dependent on the **Kubernetes control plane**, we can u
 
 &nbsp;
 
-### Multiple schedulers
+### <ins>**Multiple schedulers**</ins>
 
 **If you need to schedule specific applications**, you can write your own Kubernetes scheduler program, package it and deploy it as the default scheduler or as an additional scheduler in the Kubernetes cluster.
 
@@ -998,26 +1016,738 @@ We have to use `3rd party solution to create our Metric server`
 
 &nbsp;
 
-### <ins>Node-level metric</ins>
+### <ins>**Metrics Server (old name : Heapster)**</ins>
 
-We can get :
+We can have **one Metrics Server per Kubernetes cluster**.
 
-- the number of nodes in the cluster
-- how many of them are healthy
+It retrieves metrics from each of the Kubernetes nodes and pods, aggregates them and store them in memory.
 
-&nbsp;
-
-### <ins>Performance-level metric</ins>
-
-We can get :
-
-- CPU, memory, network and disc utilization
+- Node-level metric :
+  - the number of nodes in the cluster
+  - how many of them are healthy
 
 &nbsp;
 
-### <ins>Pod-level metric</ins>
+- Performance-level metric
+  - CPU, memory, network and disc utilization
 
-We can get :
+&nbsp;
 
-- the number of pods
-- the preformance metrics of each pod
+- Pod-level metric
+  - the number of pods
+  - the preformance metrics of each pod
+
+&nbsp;
+
+`Metrics Server` is only an in-memory monitoring solution : it does not store the metrics on the disk.
+
+It is through the a subcomponent of `Kubelet` agent, called `caAdvisor` (container advisor) that we retrieve performance metrics from pods and expose them through the `kubelet API`.
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Monitor_Logs_2.jpg" target="_blank">
+    <img src="assets/CKA_Monitor_Logs_2.jpg" alt="Settings_1" width="600" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+- To view the cluster performance by nodes
+
+```bash
+# You have to download the component
+
+# If you use one master node, run this command to create the metrics-server :
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# f you have HA (High availability) cluster, use this :
+# kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/high-availability.yaml
+vagrant@kubemaster🥃 ~ kubectl top node
+
+error: Metrics API not available
+
+vagrant@kubemaster🥃 ~ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+
+# Be sure that nodes are in Ready status
+vagrant@kubemaster🥃 ~ kubectl get nodes
+
+NAME         STATUS   ROLES           AGE   VERSION
+kubemaster   Ready    control-plane   11d   v1.26.1
+kubenode01   Ready    <none>          11d   v1.26.1
+kubenode02   Ready    <none>          11d   v1.26.1
+
+# Check if metrics server is running
+vagrant@kubemaster🥃 ~ kubectl get deploy,svc -n kube-system | egrep metrics-server
+
+deployment.apps/metrics-server   0/1     1            0           3h9m
+service/metrics-server   ClusterIP   10.97.123.56   <none>        443/TCP                  3h9m
+
+vagrant@kubemaster🥃 ~ kubectl get pods -n kube-system | grep metrics-server
+
+metrics-server-68bfd5c84d-rwzx4      0/1     Running   0                3h9m
+
+# The kube-apiserver must enable an aggregation layer. We have to configure "--kubelet-insecure-tls"
+vagrant@kubemaster🥃 ~ kubectl top node
+
+Error from server (ServiceUnavailable): the server is currently unable to handle the request (get nodes.metrics.k8s.io)
+
+vagrant@kubemaster🥃 ~ kubectl edit deployment.apps/metrics-server -n kube-system
+
+deployment.apps/metrics-server edited
+
+# You have to wait for the upadte of deployment before running the command
+vagrant@kubemaster🥃 ~ kubectl top node
+
+NAME         CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+kubemaster   275m         13%    807Mi           42%
+kubenode01   23m          1%     599Mi           31%
+kubenode02   30m          1%     288Mi           15%
+```
+
+ <!--- Center image --->
+<div align="center">
+  <a href="CKA_Monitor_Logs_3.jpg" target="_blank">
+    <img src="assets/CKA_Monitor_Logs_3.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We have to add <b>--kubelet-insecure-tls</b> property when editing the metrics server configuration</i>
+</div>
+
+&nbsp;
+
+### <ins>**Application Logs**</ins>
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl run nginx --image=nginx
+pod/nginx created
+
+vagrant@kubemaster🥃 ~ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          23s
+
+vagrant@kubemaster🥃 ~ kubectl edit pods nginx
+
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2023-03-01T14:41:02Z"
+  labels:
+    run: nginx
+  name: nginx
+  namespace: default
+  resourceVersion: "31228"
+  uid: 7f83c736-b1b7-4bb0-955d-033bc3ddc9e6
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: Always
+    name: nginx
+
+# kubectl logs <POD_NAME> <CONTAINER_NAME>
+vagrant@kubemaster🥃 ~ kubectl logs nginx nginx
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2023/03/01 14:41:28 [notice] 1#1: using the "epoll" event method
+2023/03/01 14:41:28 [notice] 1#1: nginx/1.23.3
+2023/03/01 14:41:28 [notice] 1#1: built by gcc 10.2.1 20210110 (Debian 10.2.1-6)
+2023/03/01 14:41:28 [notice] 1#1: OS: Linux 4.15.0-204-generic
+2023/03/01 14:41:28 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2023/03/01 14:41:28 [notice] 1#1: start worker processes
+2023/03/01 14:41:28 [notice] 1#1: start worker process 29
+2023/03/01 14:41:28 [notice] 1#1: start worker process 30
+```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Application Lidecycle management
+
+&nbsp;
+
+### <ins>**Commands and arguments in a POD definition file**</ins>
+
+&nbsp;
+
+> You need to have reviewed Docker commands lesson
+
+The purpose here is to translate Docker commands into POD files. Below an example : we want to run a Ubuntu container where **it will sleep for 10 secondes after starting** :
+
+```yaml
+### pod-definition.yml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper-pod
+spec:
+  containers:
+    - name: ubuntu-sleeper-container
+      image: ubuntu-sleeper
+      # Anything appended to the docker run command will go into the args property
+      # Based on the Dockerfile below, we pass the value 10 in the CMD
+      args: ["10"]
+      # To override an ENTRYPOINT in a container
+      command: ["sleep2.0"]
+```
+
+```Dockerfile
+### Dockerfile
+
+## docker run ubuntu-sleeper sleep 10  ->  docker run <IMAGE_NAME> <CMD>
+# FROM Ubuntu
+# CMD sleep 10
+# CMD ["sleep", "10"]  ->  CMD ["command","param1"]
+
+
+## docker run ubuntu-sleeper 10  ->  sleep is now executed automatically, as ENTRYPOINT
+FROM Ubuntu
+# We specify the command to run automatically, avoiding to declare it in cmd line
+ENTRYPOINT [“sleep”]
+# Value by default if we don't specify it in the cmd line
+CMD ["10"]
+
+## To override a running container, update the entrypoint like this :
+# docker run --entrypoint sleep2.0 ubuntu-sleeper 10
+```
+
+&nbsp;
+
+### <ins>**ENV variables in Kubernetes**</ins>
+
+```yaml
+### pod-definition.yml
+# docker run -e APP_COLOR=pink simple-webapp-container
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-webapp-pod
+spec:
+  containers:
+    - name: simple-webapp-container
+      image: simple-webapp
+      ports:
+        - containerPort: 8080
+      # env is an array. Each item has a name and value property
+      env:
+        - name: APP_COLOR
+          value: pink
+```
+
+There are 3 ways to configure an `env` value :
+
+<div align="center">
+  <a href="CKA_LifeCycle_1.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_1.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **ConfigMaps**
+
+We'll see how to work with configuration data in Kubernetes. It provides its utility by **avoiding to write a liste of `env` into the POD file** :
+
+- We create a `ConfigMap` file by using an imperative or declarative approach
+- We inject it into the POD
+
+```bash
+# IMPERATIVE WAY
+# from-literal is used to specify the key value pairs in the command itself
+
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+<CONFIG-NAME> --from-literal=<KEY>=<VALUE>
+
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+app-config --from-literal=APP_COLOR=blue \
+           --from-literal=APP_MODE=prod
+
+# If we have too many env variables, we can store them into app_config.properties
+vagrant@kubemaster🥃 ~ kubectl create configmap \
+app-config --from-file=app_config.properties
+```
+
+```yaml
+# DECLARATIVE WAY : we create a config-map.yaml
+# kubectl create -f config-map.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+# We don't have the spec property, compared to the POD, RS or Deployment
+data:
+  APP_COLOR: blue
+  APP_MODE: prod
+```
+
+You can create as many `ConfigMap` files as you want.
+
+<div align="center">
+  <a href="CKA_LifeCycle_2.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_2.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
+- List config maps
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get configmaps
+
+NAME               DATA   AGE
+kube-root-ca.crt   1      20m
+db-config          3      14s
+```
+
+- View details to list key-value pairs
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe configmaps db-config
+
+Name:         db-config
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+DB_HOST:
+----
+SQL01.example.com
+DB_NAME:
+----
+SQL01
+DB_PORT:
+----
+3306
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+&nbsp;
+
+3 ways to inject into POD :
+
+<div align="center">
+  <a href="CKA_LifeCycle_3.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_3.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### **Secrets**
+
+`Secrets` are used to store sensitive information. They are similir to `ConfigMaps` except that **they're stored in an encoded format**.
+
+There are 2 steps when working with Secrets :
+
+- Create Secret
+- Inject into Pod
+
+```bash
+# IMPERATIVE WAY
+
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+<SECRET-NAME> --from-literal=<KEY>=<VALUE>
+
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+app-secret --from-literal=DB_Host=mysql \
+           --from-literal=DB_User=root \
+           --from-literal=DB_Password=paswrd
+
+# If we have too many env variables, we can store them into app_config.properties
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+app-secret --from-file=app_secret.properties
+```
+
+```yaml
+# DECLARATIVE WAY : we create a secret-data.yaml
+# kubectl create -f secret-data.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+# We must encod our sensitive data
+# echo -n 'mysql' | base64
+# echo -n 'bXlzcWw=' | base64 --decode
+
+# echo -n 'root' | base64
+# echo -n 'cm9vdA==' | base64 --decode
+
+# echo -n 'paswrd' | base64
+# echo -n 'cGFzd3Jk' | base64 --decode
+data:
+  DB_Host: bXlzcWw=
+  DB_User: cm9vdA==
+  DB_Password: cGFzd3Jk
+```
+
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
+- List secrets
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get secrets
+```
+
+- Display secret values
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get secret app-secret -o yaml
+```
+
+- Describe secrets
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe secrets
+```
+
+&nbsp;
+
+3 ways to inject into POD :
+
+<div align="center">
+  <a href="CKA_LifeCycle_4.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_4.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+<div align="center">
+  <a href="CKA_LifeCycle_5.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_5.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>If we were <b>to mount the secret as a volume in the pod</b>, each attribute in the secret is created <b>as a file</b> with the value of the secret as its content. In our example we have 3 files and we can see the content in cleared text</i>
+</div>
+
+&nbsp;
+
+> ## <ins>NOTES on Secrets</ins>
+>
+> - ❌Secrets are **not Encrypted**. Only encoded.
+>
+>   - ❌ Do not check-in Secret objects to SCM (SourceCode Management) like `GitHub` along with the code. It is simple to decode them using the `Base64` encoder.
+>
+> <br/>
+>
+> - ❌ Secrets are not encrypted in ETCD.
+>   - ✅ So we must consider enabling encryption at REST : https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/
+>
+> <br/>
+>
+> - ❌ Anyone able to create pods/deployments in the same namespace can access the secrets
+>   - ✅ Configure least-privilege access to Secrets - `RBAC` (Role-based access control) to restrict access
+>
+> <br/>
+>
+> - ✅ Consider 3rd party secrets store providers : AWS / Azure / GCP / Vault Provider
+>
+> <br/>
+>
+> Also the way Kubernetes handles secrets. Such as:
+>
+> - A secret is only sent to a node if a pod on that node requires it.
+>
+> - Kubelet stores the secret into a `tmpfs` (**temporary file system**) so that the secret is not written to disk storage.
+>
+> - Once the Pod that depends on the secret is deleted, kubelet will delete its local copy of the secret data as well.
+
+&nbsp;
+
+> ### <ins>Encrypting Data at REST</ins>
+>
+> <br/>
+>
+> We'll see more details int the **Security section**
+
+```bash
+# We create a Secret object
+vagrant@kubemaster🥃 ~ kubectl create secret generic my-secret --from-literal=key1=supersecret
+
+vagrant@kubemaster🥃 ~ kubectl get secret my-secret -o yaml
+apiVersion: v1
+data:
+  key1: c3VwZXJzZWNyZXQ=
+kind: Secret
+metadata:
+  creationTimestamp: "2023-03-05T11:40:24Z"
+  name: my-secret
+  namespace: default
+  resourceVersion: "897"
+  uid: 7d296ee8-12c6-4d7f-828c-0dc80cf8652b
+type: Opaque
+
+vagrant@kubemaster🥃 ~ echo "c3VwZXJzZWNyZXQ=" | base64 -d
+supersecret
+
+# ===========================================================================================================
+
+# Let's see how the data is stored in the ETCD server
+vagrant@kubemaster🥃 ~ etcdctl
+-bash: etcdctl: command not found
+
+vagrant@kubemaster🥃 ~ apt-get install etcd-client
+vagrant@kubemaster🥃 ~ etcdctl -v
+etcdctl version: 3.2.17
+API version: 2
+
+vagrant@kubemaster🥃 ~ kubectl get pods -n kube-system
+NAME                                 READY   STATUS    RESTARTS         AGE
+etcd-kubemaster                      1/1     Running   5 (9m54s ago)    15d
+
+# Checking if we have the necessary files for encrypting the Api server
+vagrant@kubemaster🥃 ~ ls /etc/kubernetes/pki/etcd/
+ca.crt  ca.key  healthcheck-client.crt  healthcheck-client.key  peer.crt  peer.key  server.crt  server.key
+
+# Reading my-secret from ETCDCTL : we can the "supersecret" in cleared text 😒
+# ➡️We must enable encryption at REST in ETCD
+vagrant@kubemaster🥃 ~ sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/my-secret
+
+k8s
+
+
+☻v1↕♠Secret↕□☺
+□☺
+        my-secret↕→default"*$574cf3da-3e12-404b-be26-5dda334df7cf2ّ□□♠►□☺a
+kubectl-create↕♠Update→☻vّ□□♠►FieldsV1:-
++{"f:data":{".":{},"f:key1":{}},"f:type":{}}B↕‼
+♦key1↕
+      supersecret→♠Opaque→"
+
+# Lets check if the option "--encryption-provider-config" is configured in our processes status
+vagrant@kubemaster🥃 ~ ps -aux | grep kube-api | grep "encryption-provider-config"
+
+# Or we can also check in the API server manifest
+vagrant@kubemaster🥃 ~ sudo cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.168.56.2:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.168.56.2
+    - --allow-privileged=true
+    ...
+image: registry.k8s.io/kube-apiserver:v1.26.1
+
+# ===========================================================================================================
+
+# We create a configuration file
+vagrant@kubemaster🥃 ~ pwd
+/home/vagrant
+
+vagrant@kubemaster🥃 ~ vi enc.yaml
+
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  # You puck which resources you want to encrypt
+  - resources:
+      - secrets
+    providers:
+      # When encryption happens, the order matters here : we will use aescbc if configured. if not, identity
+      - aescbc:
+          keys:
+            - name: key1
+              # Get the secret from : head -c 32 /dev/urandom | base64
+              secret: VB6kCQEopvQly1mg/B/DB0zETIcpS2ca4FA/Sd6of9g=
+      - identity: {}
+
+# ===========================================================================================================
+
+vagrant@kubemaster🥃 ~ mkdir /etc/kubernetes/enc
+vagrant@kubemaster🥃 ~ sudo mv enc.yaml /etc/kubernetes/enc/
+
+# Edit Kube API server config
+vagrant@kubemaster🥃 ~ sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.168.56.2:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.168.56.2
+    - --encryption-provider-config=/etc/kubernetes/enc/enc.yaml  # <-- add this line
+    ...
+    volumeMounts:
+    # You will need to mount the new encryption config file to the kube-apiserver static pod
+    - name: enc                           # <-- add this line
+      mountPath: /etc/kubernetes/enc      # <-- add this line
+      readonly: true                      # <-- add this line
+    ...
+  volumes:
+  # The directory from local host is going to be mapped the /etc/kubernetes/enc inside the POD (see volumeMounts)
+  - name: enc                             # <-- add this line
+    hostPath:                             # <-- add this line
+      path: /etc/kubernetes/enc           # <-- add this line
+      type: DirectoryOrCreate             # <-- add this line
+
+# ===========================================================================================================
+
+ # We just have to wait for PODS to be available again
+vagrant@kubemaster🥃 ~ kubectl get pods
+The connection to the server 192.168.56.2:6443 was refused - did you specify the right host or port?
+
+vagrant@kubemaster🥃 ~ kubectl get pods
+NAME    READY   STATUS    RESTARTS      AGE
+nginx   1/1     Running   1 (97m ago)   3d23h
+
+# Lets check if the option "--encryption-provider-config" is configured in our processes status
+vagrant@kubemaster🥃 ~ ps -aux | grep kube-api | grep "encryption-provider-config"
+
+# Let's create another secret object
+vagrant@kubemaster🥃 ~ kubectl create secret generic my-secret-2 --from-literal=key2=topsecret
+secret/my-secret-2 created
+
+vagrant@kubemaster🥃 ~ kubectl get secrets
+NAME          TYPE     DATA   AGE
+my-secret     Opaque   1      93m
+my-secret-2   Opaque   1      11s
+
+# Let's check if secret is encrypted : IT IS 😀😀
+sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/my-secret-2 | hexdump -C
+
+# The prvious my-secret is not encrypted 😒 : BUT we can resolve this 😀😀
+vagrant@kubemaster🥃 ~ kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+
+secret/my-secret replaced
+secret/my-secret-2 replaced
+```
+
+&nbsp;
+
+### <ins>**InitContainers**</ins>
+
+In a multi-container pod, each container is expected to run a process that stays alive as long as the POD's lifecycle.
+
+For example, with a **web application** and **logging agent**, both the containers are expected to stay alive at all times. If any of them fails, the POD restarts.
+
+> But at times you may want to run a process that runs to completion in a container.
+>
+> For example a process that waits for an external service or database to be up before the actual application starts. That's where initContainers comes in.
+
+An `initContainer` is configured in a pod like all other containers, except that it is specified inside a initContainers section, like this:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+    - name: myapp-container
+      image: busybox:1.28
+      command: ["sh", "-c", "echo The app is running! && sleep 3600"]
+  initContainers:
+    - name: init-myservice
+      image: busybox
+      command:
+        [
+          "sh",
+          "-c",
+          "git clone <some-repository-that-will-be-used-by-application> ; done;",
+        ]
+```
+
+> When a POD is first created the initContainer is runnning, and <ins>**the process in the initContainer must run to a completion before**</ins> the real container hosting the application starts.
+
+&nbsp;
+
+We can configure multiple such initContainers as well, like how we did for multi-pod containers. In that case each init container is **run one at a time in sequential order.**
+
+> If any of the initContainers fail to complete, Kubernetes restarts the Pod repeatedly until the Init Container succeeds.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+    - name: myapp-container
+      image: busybox:1.28
+      command: ["sh", "-c", "echo The app is running! && sleep 3600"]
+  initContainers:
+    - name: init-myservice
+      image: busybox:1.28
+      command:
+        [
+          "sh",
+          "-c",
+          "until nslookup myservice; do echo waiting for myservice; sleep 2; done;",
+        ]
+    - name: init-mydb
+      image: busybox:1.28
+      command:
+        [
+          "sh",
+          "-c",
+          "until nslookup mydb; do echo waiting for mydb; sleep 2; done;",
+        ]
+```
+
+&nbsp;
