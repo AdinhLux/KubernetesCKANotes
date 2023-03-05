@@ -83,4 +83,5 @@ spec:
          name: webapp-config-map
 ```
 
-$ kubectl apply -f webapp-color-pod-2.yaml --force
+# $ kubectl apply -f webapp-color-pod-2.yaml --force
+$ kubectl replace --force -f webapp-color-pod-2.yaml

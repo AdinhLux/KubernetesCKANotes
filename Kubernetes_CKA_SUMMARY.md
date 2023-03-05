@@ -1281,7 +1281,7 @@ vagrant@kubemaster🥃 ~ kubectl create configmap \
 
 vagrant@kubemaster🥃 ~ kubectl create configmap \
 app-config --from-literal=APP_COLOR=blue \
---from-literal=APP_MODE=prod
+           --from-literal=APP_MODE=prod
 
 # If we have too many env variables, we can store them into app_config.properties
 vagrant@kubemaster🥃 ~ kubectl create configmap \
@@ -1367,3 +1367,127 @@ Events:  <none>
 &nbsp;
 
 #### **Secrets**
+
+`Secrets` are used to store sensitive information. They are similir to `ConfigMaps` except that **they're stored in an encoded format**.
+
+There are 2 steps when working with Secrets :
+
+- Create Secret
+- Inject into Pod
+
+```bash
+# IMPERATIVE WAY
+
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+<SECRET-NAME> --from-literal=<KEY>=<VALUE>
+
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+app-secret --from-literal=DB_Host=mysql \
+           --from-literal=DB_User=root \
+           --from-literal=DB_Password=paswrd
+
+# If we have too many env variables, we can store them into app_config.properties
+vagrant@kubemaster🥃 ~ kubectl create secret generic \
+app-secret --from-file=app_secret.properties
+```
+
+```yaml
+# DECLARATIVE WAY : we create a secret-data.yaml
+# kubectl create -f secret-data.yaml
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+# We must encod our sensitive data
+# echo -n 'mysql' | base64
+# echo -n 'bXlzcWw=' | base64 --decode
+
+# echo -n 'root' | base64
+# echo -n 'cm9vdA==' | base64 --decode
+
+# echo -n 'paswrd' | base64
+# echo -n 'cGFzd3Jk' | base64 --decode
+data:
+  DB_Host: bXlzcWw=
+  DB_User: cm9vdA==
+  DB_Password: cGFzd3Jk
+```
+
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
+- List secrets
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get secrets
+```
+
+- Display secret values
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get secret app-secret -o yaml
+```
+
+- Describe secrets
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe secrets
+```
+
+&nbsp;
+
+3 ways to inject into POD :
+
+<div align="center">
+  <a href="CKA_LifeCycle_4.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_4.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+<div align="center">
+  <a href="CKA_LifeCycle_5.jpg" target="_blank">
+    <img src="assets/CKA_LifeCycle_5.jpg" alt="Settings_1" width="550" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>If we were <b>to mount the secret as a volume in the pod</b>, each attribute in the secret is created <b>as a file</b> with the value of the secret as its content. In our example we have 3 files and we can see the content in cleared text</i>
+</div>
+
+&nbsp;
+
+> ## <ins>NOTES on Secrets</ins>
+>
+> - ❌Secrets are **not Encrypted**. Only encoded.
+>
+>   - ❌ Do not check-in Secret objects to SCM (SourceCode Management) like `GitHub` along with the code. It is simple to decode them using the `Base64` encoder.
+>
+> <br/>
+>
+> - ❌ Secrets are not encrypted in ETCD.
+>   - ✅ So we must consider enabling encryption at REST : https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/
+>
+> <br/>
+>
+> - ❌ Anyone able to create pods/deployments in the same namespace can access the secrets
+>   - ✅ Configure least-privilege access to Secrets - `RBAC` (Role-based access control) to restrict access
+>
+> <br/>
+>
+> - ✅ Consider 3rd party secrets store providers : AWS / Azure / GCP / Vault Provider
+>
+> <br/>
+>
+> Also the way Kubernetes handles secrets. Such as:
+>
+> - A secret is only sent to a node if a pod on that node requires it.
+>
+> - Kubelet stores the secret into a `tmpfs` (**temporary file system**) so that the secret is not written to disk storage.
+>
+> - Once the Pod that depends on the secret is deleted, kubelet will delete its local copy of the secret data as well.
