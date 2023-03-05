@@ -1491,3 +1491,185 @@ vagrant@kubemaster🥃 ~ kubectl describe secrets
 > - Kubelet stores the secret into a `tmpfs` (**temporary file system**) so that the secret is not written to disk storage.
 >
 > - Once the Pod that depends on the secret is deleted, kubelet will delete its local copy of the secret data as well.
+
+&nbsp;
+
+> ### <ins>Encrypting Data at REST</ins>
+>
+> <br/>
+>
+> We'll see more details int the **Security section**
+
+```bash
+# We create a Secret object
+vagrant@kubemaster🥃 ~ kubectl create secret generic my-secret --from-literal=key1=supersecret
+
+vagrant@kubemaster🥃 ~ kubectl get secret my-secret -o yaml
+apiVersion: v1
+data:
+  key1: c3VwZXJzZWNyZXQ=
+kind: Secret
+metadata:
+  creationTimestamp: "2023-03-05T11:40:24Z"
+  name: my-secret
+  namespace: default
+  resourceVersion: "897"
+  uid: 7d296ee8-12c6-4d7f-828c-0dc80cf8652b
+type: Opaque
+
+vagrant@kubemaster🥃 ~ echo "c3VwZXJzZWNyZXQ=" | base64 -d
+supersecret
+
+# ===========================================================================================================
+
+# Let's see how the data is stored in the ETCD server
+vagrant@kubemaster🥃 ~ etcdctl
+-bash: etcdctl: command not found
+
+vagrant@kubemaster🥃 ~ apt-get install etcd-client
+vagrant@kubemaster🥃 ~ etcdctl -v
+etcdctl version: 3.2.17
+API version: 2
+
+vagrant@kubemaster🥃 ~ kubectl get pods -n kube-system
+NAME                                 READY   STATUS    RESTARTS         AGE
+etcd-kubemaster                      1/1     Running   5 (9m54s ago)    15d
+
+# Checking if we have the necessary files for encrypting the Api server
+vagrant@kubemaster🥃 ~ ls /etc/kubernetes/pki/etcd/
+ca.crt  ca.key  healthcheck-client.crt  healthcheck-client.key  peer.crt  peer.key  server.crt  server.key
+
+# Reading my-secret from ETCDCTL : we can the "supersecret" in cleared text 😒
+# ➡️We must enable encryption at REST in ETCD
+vagrant@kubemaster🥃 ~ sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/my-secret
+
+k8s
+
+
+☻v1↕♠Secret↕□☺
+□☺
+        my-secret↕→default"*$574cf3da-3e12-404b-be26-5dda334df7cf2ّ□□♠►□☺a
+kubectl-create↕♠Update→☻vّ□□♠►FieldsV1:-
++{"f:data":{".":{},"f:key1":{}},"f:type":{}}B↕‼
+♦key1↕
+      supersecret→♠Opaque→"
+
+# Lets check if the option "--encryption-provider-config" is configured in our processes status
+vagrant@kubemaster🥃 ~ ps -aux | grep kube-api | grep "encryption-provider-config"
+
+# Or we can also check in the API server manifest
+vagrant@kubemaster🥃 ~ sudo cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.168.56.2:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.168.56.2
+    - --allow-privileged=true
+    ...
+image: registry.k8s.io/kube-apiserver:v1.26.1
+
+# ===========================================================================================================
+
+# We create a configuration file
+vagrant@kubemaster🥃 ~ pwd
+/home/vagrant
+
+vagrant@kubemaster🥃 ~ vi enc.yaml
+
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  # You puck which resources you want to encrypt
+  - resources:
+      - secrets
+    providers:
+      # When encryption happens, the order matters here : we will use aescbc if configured. if not, identity
+      - aescbc:
+          keys:
+            - name: key1
+              # Get the secret from : head -c 32 /dev/urandom | base64
+              secret: VB6kCQEopvQly1mg/B/DB0zETIcpS2ca4FA/Sd6of9g=
+      - identity: {}
+
+# ===========================================================================================================
+
+vagrant@kubemaster🥃 ~ mkdir /etc/kubernetes/enc
+vagrant@kubemaster🥃 ~ sudo mv enc.yaml /etc/kubernetes/enc/
+
+# Edit Kube API server config
+vagrant@kubemaster🥃 ~ sudo vi /etc/kubernetes/manifests/kube-apiserver.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.168.56.2:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.168.56.2
+    - --encryption-provider-config=/etc/kubernetes/enc/enc.yaml  # <-- add this line
+    ...
+    volumeMounts:
+    # You will need to mount the new encryption config file to the kube-apiserver static pod
+    - name: enc                           # <-- add this line
+      mountPath: /etc/kubernetes/enc      # <-- add this line
+      readonly: true                      # <-- add this line
+    ...
+  volumes:
+  # The directory from local host is going to be mapped the /etc/kubernetes/enc inside the POD (see volumeMounts)
+  - name: enc                             # <-- add this line
+    hostPath:                             # <-- add this line
+      path: /etc/kubernetes/enc           # <-- add this line
+      type: DirectoryOrCreate             # <-- add this line
+
+# ===========================================================================================================
+
+ # We just have to wait for PODS to be available again
+vagrant@kubemaster🥃 ~ kubectl get pods
+The connection to the server 192.168.56.2:6443 was refused - did you specify the right host or port?
+
+vagrant@kubemaster🥃 ~ kubectl get pods
+NAME    READY   STATUS    RESTARTS      AGE
+nginx   1/1     Running   1 (97m ago)   3d23h
+
+# Lets check if the option "--encryption-provider-config" is configured in our processes status
+vagrant@kubemaster🥃 ~ ps -aux | grep kube-api | grep "encryption-provider-config"
+
+# Let's create another secret object
+vagrant@kubemaster🥃 ~ kubectl create secret generic my-secret-2 --from-literal=key2=topsecret
+secret/my-secret-2 created
+
+vagrant@kubemaster🥃 ~ kubectl get secrets
+NAME          TYPE     DATA   AGE
+my-secret     Opaque   1      93m
+my-secret-2   Opaque   1      11s
+
+# Let's check if secret is encrypted : IT IS 😀😀
+sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/my-secret-2 | hexdump -C
+
+# The prvious my-secret is not encrypted 😒 : BUT we can resolve this 😀😀
+vagrant@kubemaster🥃 ~ kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+
+secret/my-secret replaced
+secret/my-secret-2 replaced
+```
