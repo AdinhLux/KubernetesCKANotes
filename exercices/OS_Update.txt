@@ -1,0 +1,173 @@
+Q:
+--
+We need to take node01 out for maintenance. Empty the node of all applications and mark it unschedulable.
+
+
+A:
+--
+
+1)  $ kubectl drain node01
+
+node/node01 cordoned
+error: unable to drain node "node01" due to error:cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-flannel/kube-flannel-ds-zxt7s, kube-system/kube-proxy-268vj, continuing command...
+There are pending nodes to be drained:
+ node01
+cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-flannel/kube-flannel-ds-zxt7s, kube-system/kube-proxy-268vj
+
+
+2)  $ kubectl drain node01 --ignore-daemonsets
+
+node/node01 already cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-zxt7s, kube-system/kube-proxy-268vj
+evicting pod default/blue-987f68cb5-zv88k
+evicting pod default/blue-987f68cb5-2tp4w
+pod/blue-987f68cb5-zv88k evicted
+pod/blue-987f68cb5-2tp4w evicted
+node/node01 drained
+
+
+===============================================================================================================================
+
+Q:
+--
+The maintenance tasks have been completed. Configure the node node01 to be schedulable again
+
+
+A:
+--
+
+1)  $ kubectl uncordon node01
+
+node/node01 uncordoned
+
+
+===============================================================================================================================
+
+Q:
+--
+How many pods are scheduled on node01 now ?
+
+
+A:
+--
+
+$ kubectl get pods -o wide
+
+NAME                   READY   STATUS    RESTARTS   AGE    IP           NODE           NOMINATED NODE   READINESS GATES
+blue-987f68cb5-fpdxf   1/1     Running   0          109s   10.244.0.6   controlplane   <none>           <none>
+blue-987f68cb5-mrk4m   1/1     Running   0          6m6s   10.244.0.4   controlplane   <none>           <none>
+blue-987f68cb5-nxzcr   1/1     Running   0          109s   10.244.0.5   controlplane   <none>           <none>
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Why are there no pods on node01 ?
+
+
+A:
+--
+
+Only when new pods are created they will be scheduled
+	
+	
+===============================================================================================================================
+
+Q:
+--
+Why are the pods placed on the controlplane node?
+
+
+A:
+--
+
+controlplane node does not have any taints
+	
+	
+===============================================================================================================================
+
+Q:
+--
+We need to carry out a maintenance activity on node01 again. Try draining the node again using the same command as before: kubectl drain node01 --ignore-daemonsets
+
+
+Did that work?
+
+
+A:
+--
+
+NO
+
+$ kubectl drain node01 --ignore-daemonsets
+
+node/node01 cordoned
+
+error: unable to drain node "node01" due to error:cannot delete Pods declare no controller (use --force to override): default/hr-app, continuing command...
+There are pending nodes to be drained:
+ node01
+cannot delete Pods declare no controller (use --force to override): default/hr-app
+
+	
+===============================================================================================================================
+
+Q:
+--
+Why did the drain command fail on node01? It worked the first time!
+
+
+A:
+--
+Run: kubectl get pods -o wide and you will see that there is a single pod scheduled on node01 which is not part of a replicaset.
+The drain command will not work in this case. To forcefully drain the node we now have to use the --force flag.
+
+$ kubectl get pods -o wide
+
+NAME                   READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+blue-987f68cb5-fpdxf   1/1     Running   0          5m41s   10.244.0.6   controlplane   <none>           <none>
+blue-987f68cb5-mrk4m   1/1     Running   0          9m58s   10.244.0.4   controlplane   <none>           <none>
+blue-987f68cb5-nxzcr   1/1     Running   0          5m41s   10.244.0.5   controlplane   <none>           <none>
+hr-app                 1/1     Running   0          111s    10.244.1.4   node01         <none>           <none>
+	
+	
+===============================================================================================================================
+
+Q:
+--
+What would happen to hr-app if node01 is drained forcefully ?
+
+
+A:
+--
+hr-app will be lost forever
+
+$ kubectl drain node01 --ignore-daemonsets --force
+
+node/node01 already cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-zxt7s, kube-system/kube-proxy-268vj; deleting Pods that declare no controller: default/hr-app
+evicting pod default/hr-app
+node/node01 drained
+
+
+
+Oops! We did not want to do that! hr-app is a critical application that should not be destroyed. We have now reverted back to the previous state and re-deployed hr-app as a deployment.
+	
+	
+===============================================================================================================================
+
+Q:
+--
+hr-app is a critical app and we do not want it to be removed and we do not want to schedule any more pods on node01.
+Mark node01 as unschedulable so that no new pods are scheduled on this node.
+
+Make sure that hr-app is not affected.
+
+
+A:
+--
+Do not drain node01, instead use the kubectl cordon node01 command. This will ensure that no new pods are scheduled on this node and the existing pods will not be affected by this operation.
+
+$ kubectl cordon node01
+
+node/node01 cordoned

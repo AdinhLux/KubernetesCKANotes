@@ -50,7 +50,7 @@ weave-net-ls9d9                      2/2     Running   0             22h
 
 ### <ins>**ETCD**</ins>
 
-The `etcd` key-value store stores cluster information and state, such as :
+The <mark>ETCD</mark> key-value store stores cluster information and state, such as :
 
 ```
 - nodes
@@ -360,7 +360,7 @@ This filter can be customized and we also can create our own scheduler.
 
 ## Namespaces
 
-A `namespace` is an isolated environment where you define your set of POD, service, replica sets or deployment objects. Each time we create aone of them, it is created into a `default ` namespace.
+A <mark>Namespace</mark> is an isolated environment where you define your set of POD, service, replica sets or deployment objects. Each time we create aone of them, it is created into a `default ` namespace.
 
 When you have to manage a Production environment, it is advised to define a `dev`, `prod` namespaces to avoid accidentally deleting some objects.
 
@@ -487,7 +487,7 @@ metadata:
 
 ### <ins>**When there is no scheduler to monitor**</ins>
 
-The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself vy setting the `nodeName` property in pod specification file.
+The Pod is in `Pending` state. To resolve this issue, you can manually assing pods to nodes yourself by setting the `nodeName` property in pod specification file.
 
 ```bash
 🥃 ~ kubectl get pods
@@ -565,7 +565,7 @@ target:
 
 ### <ins>**Labels and Selectors**</ins>
 
-As already told in the beginner's courses, `labels` are used to catgorize Kubernetes objects (PODs, services, etc.) and `selector` is used to filter them when doing a research.
+As already told in the beginner's courses, <mark>Labels</mark> are used to catgorize Kubernetes objects (PODs, services, etc.) and <mark>Selector</mark> is used to filter them when doing a research.
 
 ```bash
 # We are looking for PODs having this label 'env : dev'
@@ -592,7 +592,7 @@ pod/app-1-zzxdf   1/1     Running   0          8m48s
 
 ### <ins>**Taints and Tolerations (Pod to Node relationship)**</ins>
 
-`Taints and Tolerations` have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
+<mark>Taints</mark> and <mark>Tolerations</mark> have nothing to do with security or in trusion on the cluster : they are used to set restrictions **on what pods can be scheduled on a node**.
 
 It is used when we decide to use a node for a specific use case.
 
@@ -614,7 +614,7 @@ The `taint-effect` defines what would happen to the PODs if they do not tolerate
 🥃 ~ kubectl taint nodes node1 app=blue:NoSchedule-
 ```
 
-`Tolerations` are added to pods :
+<mark>Tolerations</mark> are added to pods :
 
 ```yaml
 ### pod-definition.yml
@@ -647,7 +647,7 @@ For information, a Taint is already applied to the `master` node when cluster is
 
 We can set a limition on the pods so that they only run on particular nodes. There are 2 methods :
 
-- `Node selector` : we add a `nodeSelector` property at the pod-definition file. Before we must add labels to nodes.
+- <mark>Node Selector</mark> : we add a `nodeSelector` property at the pod-definition file. Before we must add labels to nodes.
 
 ```bash
 # Add "size: Large" label to node : kubectl label nodes <node-name> <label-key>=<label-value>
@@ -677,7 +677,7 @@ spec:
 
 &nbsp;
 
-- `Node affinity` : Node selector has its limitations because we just use a simple label, no advanced expressions : this is where we use the node affinities.
+- <mark>Node Affinity</mark> : Node selector has its limitations because we just use a simple label, no advanced expressions : this is where we use the node affinities.
 
 ```yaml
 ### pod-definition.yml
@@ -868,7 +868,7 @@ The kubelet periodically checks this directory for files, reads these files and 
 - If we make a change to a file, the kubelet recreates the pod for those changes to take effect
 - If we remove a file from this directory, the kubelet destroys the pod automatically
 
-These created pods are known as `static PODs`.
+These created pods are known as <mark>Static PODs</mark>.
 
 &nbsp;
 
@@ -887,7 +887,7 @@ These created pods are known as `static PODs`.
 
 The kubelet can create both kind of pods at the same time (the static and the ones from Kube API server). The API server is aware of the static ones (a ready-only mirrored one is created in the Kube API server).
 
-As `static PODs` are not dependent on the **Kubernetes control plane**, we can use them to deploy control plane components itself as pods on a node.
+As <mark>Static PODs</mark> are not dependent on the **Kubernetes control plane**, we can use them to deploy control plane components itself as pods on a node.
 
  <!--- Center image --->
 <div align="center">
@@ -993,7 +993,7 @@ LAST SEEN   TYPE      REASON                    OBJECT              SUBOBJECT   
 🥃 ~ kubectl logs my-scheduler --namespace=kube-system
 ```
 
-When creating different schedulers, you can configure them by disabling some plugins (see `Configuring Scheduler Profiles` on udemy)
+> ## When creating different schedulers, you can configure them by disabling some plugins (see `Configuring Scheduler Profiles` on udemy)
 
 &nbsp;
 
@@ -1039,7 +1039,7 @@ It retrieves metrics from each of the Kubernetes nodes and pods, aggregates them
 
 &nbsp;
 
-`Metrics Server` is only an in-memory monitoring solution : it does not store the metrics on the disk.
+<mark>Metrics Server</mark> is only an in-memory monitoring solution : it does not store the metrics on the disk.
 
 It is through the a subcomponent of `Kubelet` agent, called `caAdvisor` (container advisor) that we retrieve performance metrics from pods and expose them through the `kubelet API`.
 
@@ -1128,6 +1128,8 @@ kubenode02   30m          1%     288Mi           15%
 &nbsp;
 
 ### <ins>**Application Logs**</ins>
+
+&nbsp;
 
 ```bash
 vagrant@kubemaster🥃 ~ kubectl run nginx --image=nginx
@@ -1269,7 +1271,7 @@ There are 3 ways to configure an `env` value :
 
 We'll see how to work with configuration data in Kubernetes. It provides its utility by **avoiding to write a liste of `env` into the POD file** :
 
-- We create a `ConfigMap` file by using an imperative or declarative approach
+- We create a **`ConfigMap`** file by using an imperative or declarative approach
 - We inject it into the POD
 
 ```bash
@@ -1368,7 +1370,7 @@ Events:  <none>
 
 #### **Secrets**
 
-`Secrets` are used to store sensitive information. They are similir to `ConfigMaps` except that **they're stored in an encoded format**.
+<mark>Secrets</mark> are used to store sensitive information. They are similir to `ConfigMaps` except that **they're stored in an encoded format**.
 
 There are 2 steps when working with Secrets :
 
@@ -1686,7 +1688,7 @@ For example, with a **web application** and **logging agent**, both the containe
 >
 > For example a process that waits for an external service or database to be up before the actual application starts. That's where initContainers comes in.
 
-An `initContainer` is configured in a pod like all other containers, except that it is specified inside a initContainers section, like this:
+An <mark>initContainer</mark> is configured in a pod like all other containers, except that it is specified inside a initContainers section, like this:
 
 ```yaml
 apiVersion: v1
@@ -1751,3 +1753,107 @@ spec:
 ```
 
 &nbsp;
+
+---
+
+&nbsp;
+
+## Cluster Maintenance
+
+We start :
+
+- by seeing the implications of losing a node from the cluster
+- by taking a node out of a cluster for applying patches or upgrading OS itself
+
+Then we look at the cluster upgrade process and finally on backup / restoration methodologies
+
+<br/>
+
+> Before all of that we need top know about K8S releases, versions and the best practices around upgrading :
+>
+> - when to upgrade
+> - what version to upgrade
+> - etc.
+
+&nbsp;
+
+### <ins>**OS Upgrades**</ins>
+
+In this section we'll discuss about a scenario whe we might have to take down nodes, for maintenance purposes, like upgrading a based software or applying security patches, etc. on the cluster.
+
+&nbsp;
+
+#### <ins>The following scenario</ins>
+
+`node-1` is taken down. The following points :
+
+- PODs in node-1 are not accessible
+- Blue POD is a member of a Replica Set : The users can still access it from `node-2`. However they are still impacted due to Green POD.
+
+What does Kubernetes do in this case ?
+
+- If the node came back immediately, then the kubelet process starts.
+- However the node was down for more than 5 minutes, then the PODs are terminated from `node-1`.
+- As Blue POD is part of a Replica Set, then it is recreated in other nodes.
+
+The time it waits for a POD to come back online is known as the <mark>POD-eviction Timeout</mark> and it is set on the `Controller Manager` with a default value of 5 minutes.
+
+```bash
+vagrant@kubemaster🥃 ~ kube-controller-manager --pod-eviction-timeout=5m0s ...
+```
+
+<div align="center">
+  <a href="CKA_OS_Upgrades_1.jpg" target="_blank">
+    <img src="assets/CKA_OS_Upgrades_1.jpg" alt="Settings_1" width="400" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>When the node <b>comes back alive after the POD-eviction Timeout</b>, it comes up blank without anu pod scheduled on it. Since Blue POD was part of a Replica Set, it already had a new Pod created on another node. But Green POD is just gone</i>
+</div>
+
+&nbsp;
+
+#### <mark>**How to be sure to recreate the PODs after the Pod-eviction Timeout ?**</mark>
+
+<br/>
+
+We can purposefully `drain` the node of all the workloads so that the workloads are moved to other nodes in the cluster.
+
+> Technically they are NOT moved :
+>
+> - The PODs are gracefully terminated on `node-1` and recreated on another node.
+> - `node-1` is also cordoned or marked as unschedulable : meaning no PODs can be scheduled on this node unitl we specifically remove the restriction.
+
+  <br/>
+
+Now that the PODs are safe on other nodes, you can reboot `node-1`
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl drain node-1
+
+# It is done automatically. Unlike drain, it does not terminate or move the PODs on an existing node
+vagrant@kubemaster🥃 ~ kubectl cordon node-1
+```
+
+<div align="center">
+  <a href="CKA_OS_Upgrades_2.jpg" target="_blank">
+    <img src="assets/CKA_OS_Upgrades_2.jpg" alt="Settings_2" width="350" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+When `node-1` comes back online, it is still unschedulable : you then need to `uncordon` it so the PODs can be scheduled on it again.
+
+> The PODs that were "moved" to the other nodes don't automatically fall back :if any of those PODs were deleted or if new PODs were created in the cluster, they would be created on `node-1`
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl uncordon node-1
+```
+
+<div align="center">
+  <a href="CKA_OS_Upgrades_3.jpg" target="_blank">
+    <img src="assets/CKA_OS_Upgrades_3.jpg" alt="Settings_2" width="450" height="300"/>
+  </a>
+</div>
