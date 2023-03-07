@@ -1814,6 +1814,12 @@ vagrant@kubemaster🥃 ~ kube-controller-manager --pod-eviction-timeout=5m0s ...
 
 &nbsp;
 
+> #### Kubectl
+>
+> ---
+
+<br/>
+
 #### <mark>**How to be sure to recreate the PODs after the Pod-eviction Timeout ?**</mark>
 
 <br/>
@@ -1825,7 +1831,7 @@ We can purposefully `drain` the node of all the workloads so that the workloads 
 > - The PODs are gracefully terminated on `node-1` and recreated on another node.
 > - `node-1` is also cordoned or marked as unschedulable : meaning no PODs can be scheduled on this node unitl we specifically remove the restriction.
 
-  <br/>
+<br/>
 
 Now that the PODs are safe on other nodes, you can reboot `node-1`
 
@@ -1857,3 +1863,272 @@ vagrant@kubemaster🥃 ~ kubectl uncordon node-1
     <img src="assets/CKA_OS_Upgrades_3.jpg" alt="Settings_2" width="450" height="300"/>
   </a>
 </div>
+
+&nbsp;
+
+### <ins>**Kubernetes Software Versions**</ins>
+
+#### <ins>Releases</ins>
+
+We will see how Kubernetes manages the software releases. Let's take a look at the version number :
+
+<div align="center">
+  <a href="CKA_Software_Releases_1.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_1.jpg" alt="Settings_2" width="300" height="200"/>
+  </a>
+</div>
+
+Apart from **stable** releases there are also **alpha** then **beta** releases :
+
+- alpha : the features are disabled by default and may be buggy.
+- beta : the code is well tested (new features are enabled by default)
+
+`ETCD Cluster` and `CoreDNS` are separated projects, so they have different versions. The release notes of the Kubernetes project provides information about the supported version of externally dependent applications.
+
+<div align="center">
+  <a href="CKA_Software_Releases_2.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_2.jpg" alt="Settings_2" width="400" height="200"/>
+  </a>
+</div>
+
+&nbsp;
+
+#### <ins>Cluster Upgrade Process</ins>
+
+Let's focus on the `controlplane` components.
+
+> Is it mandatory for all of thsesd to have the same version ? **No they can be at different release versions**
+
+Some rules :
+
+- None of the other components should at a version higher than the `Kube API server`.
+- `kubectl` could be at a version higher / lower / identical than the Kube API server
+
+<div align="center">
+  <a href="CKA_Software_Releases_3.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_3.jpg" alt="Settings_2" width="450" height="300"/>
+  </a>
+</div>
+
+This permissible skew in versions allows us to carry out live upgrades. We can upgrade component by component if required.
+
+<br/>
+
+#### <mark>**When should we upgrade ?**</mark>
+
+<br/>
+
+The Kubernetes project maintains release branches for `the most recent three minor releases`.
+
+> The recommended approach is to upgrade 1 minor version at a time.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Software_Releases_4.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_4.jpg" alt="Settings_1" width="500" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>With the release of version 1.13</b>, version 1.10 becomes unsupported. The good approach will be to upgrade to versio  1.11 then 1.12, etc.</i>
+</div>
+
+&nbsp;
+
+The upgrade process depens on how your cluster is set up :
+
+- A public provider lets you upgrade your cluster easily with a few clicks.
+- With `Kubeadm`, the tool can help us to plan and upgrade the cluster with specific commands.
+- From scratch you update one by one manually
+
+<div align="center">
+  <a href="CKA_Software_Releases_5.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_5.jpg" alt="Settings_1" width="700" height="350"/>
+  </a>
+</div>
+
+&nbsp;
+
+Below, an example with `Kubeadm`. Upgrading a cluster involves 2 major steps :
+
+- First you upgrade the `master` node
+- Then the `worker` nodes. There are different strategies available to upgrade the worker nodes.
+  - Update all of them at once
+  - Update one by one
+  - Add a new up-to-date node to the cluster and move the PODs.
+
+<div align="center">
+  <a href="CKA_Software_Releases_6.jpg" target="_blank">
+    <img src="assets/CKA_Software_Releases_6.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>Here we update the master node, then the worker nodes one by one. <b>Before upgrading node-1</b> we move its worload to the other nodes</i>
+</div>
+
+<br/>
+
+#### <mark>**Process to upgrade**</mark>
+
+<br/>
+
+> #### Kubeadm
+>
+> ---
+
+https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+
+- To get upgrade recommendations
+
+```bash
+# Find out whet the latest stable version kubeadm knows
+vagrant@kubemaster🥃 ~ kubeadm upgrade plan
+
+# Current version of Kubeadm : 1.25
+[upgrade/versions] kubeadm version: v1.25.0
+# Latest stable version for Kubernetes
+I0309 04:15:37.787502   15100 version.go:256] remote version is much newer: v1.26.2; falling back to: stable-1.25
+# Latest stable version for Kubeadm
+[upgrade/versions] Latest version in the v1.25 series: v1.25.7
+
+# Kubeadm can upgrade the cluster to 1.25.7. If you need to upgrade tp higher version, you need to upgrade Kubeadm
+COMPONENT   CURRENT       TARGET
+kubelet     2 x v1.25.0   v1.25.7
+...
+```
+
+To get the information about OS
+
+```bash
+vagrant@kubemaster🥃 ~ ➜  cat /etc/*release*
+
+DISTRIB_ID=Ubuntu
+DISTRIB_RELEASE=20.04
+DISTRIB_CODENAME=focal
+DISTRIB_DESCRIPTION="Ubuntu 20.04.5 LTS"
+NAME="Ubuntu"
+VERSION="20.04.5 LTS (Focal Fossa)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Ubuntu 20.04.5 LTS"
+VERSION_ID="20.04"
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+VERSION_CODENAME=focal
+UBUNTU_CODENAME=focal
+```
+
+- Download and install kubeadm upgrades (<ins>**We don't apply these YET**</ins>)
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl drain controlplane
+vagrant@kubemaster🥃 ~ apt-get update && apt-get install -y --allow-change-held-packages kubeadm=1.26.0-00
+```
+
+To get the list of available versions for `Kubeadm`
+
+```bash
+vagrant@kubemaster🥃 ~ apt-cache madison kubeadm
+
+   kubeadm |  1.26.2-00 | http://apt.kubernetes.io kubernetes-xenial/main amd64 Packages
+   kubeadm |  1.26.1-00 | http://apt.kubernetes.io kubernetes-xenial/main amd64 Packages
+```
+
+- Check kubeadm version
+
+```bash
+vagrant@kubemaster🥃 ~ kubeadm version
+
+kubeadm version: &version.Info{Major:"1", Minor:"26", GitVersion:"v1.26.0", GitCommit:"b46a3f887ca979b1a5d14fd39cb1af43e7e5d12d", GitTreeState:"clean", BuildDate:"2022-12-08T19:57:06Z", GoVersion:"go1.19.4", Compiler:"gc", Platform:"linux/amd64"}
+```
+
+- <ins>**Apply**</ins> upgrades
+
+```bash
+vagrant@kubemaster🥃 ~ kubeadm upgrade apply v1.26.0
+
+[upgrade/version] You have chosen to change the cluster version to "v1.26.0"
+[upgrade/versions] Cluster version: v1.25.0
+[upgrade/versions] kubeadm version: v1.26.0
+[upgrade] Are you sure you want to proceed? [y/N]
+```
+
+- Upgrade `Kubelet` and `kubectl` utility
+
+```bash
+vagrant@kubemaster🥃 ~ apt-get update && apt-get install -y --allow-change-held-packages kubelet=1.26.0-00 kubectl=1.26.0-00
+
+Preparing to unpack .../kubectl_1.26.0-00_amd64.deb ...
+Unpacking kubectl (1.26.0-00) over (1.25.0-00) ...
+Preparing to unpack .../kubelet_1.26.0-00_amd64.deb ...
+/usr/sbin/policy-rc.d returned 101, not running 'stop kubelet.service'
+Unpacking kubelet (1.26.0-00) over (1.25.0-00) ...
+Setting up kubectl (1.26.0-00) ...
+Setting up kubelet (1.26.0-00) ...
+/usr/sbin/policy-rc.d returned 101, not running 'start kubelet.service'
+```
+
+- Restart `Kubelet`
+
+```bash
+vagrant@kubemaster🥃 ~ systemctl daemon-reload
+vagrant@kubemaster🥃 ~ systemctl restart kubelet
+
+# You see the upgrade from 1.25.0 to 1.26.0
+vagrant@kubemaster🥃 ~ kubectl get nodes
+
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready,SchedulingDisabled   control-plane   94m   v1.26.0
+node01         Ready                      <none>          93m   v1.25.0
+```
+
+- Then upgrade the `worker` node
+
+```bash
+# Connect to node01
+vagrant@kubemaster🥃 ~ kubectl get nodes -o wide
+
+NAME           STATUS                     ROLES           AGE    VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION   CONTAINER-RUNTIME
+controlplane   Ready                      control-plane   100m   v1.26.0   192.12.187.3   <none>        Ubuntu 20.04.5 LTS   5.4.0-1100-gcp   containerd://1.6.6
+node01         Ready,SchedulingDisabled   <none>          99m    v1.25.0   192.12.187.6   <none>        Ubuntu 20.04.5 LTS   5.4.0-1101-gcp   containerd://1.6.6
+
+vagrant@kubemaster🥃 ~ ssh 192.12.187.6
+
+# Upgrade Kubeadm tool
+root@node01🥃 ~ apt-get update && apt-get install -y --allow-change-held-packages kubeadm=1.26.0-00
+
+# Upgrade local kubelet configuration of worker node
+root@node01🥃 ~ sudo kubeadm upgrade node
+
+[upgrade] The configuration for this node was successfully updated!
+[upgrade] Now you should go ahead and upgrade the kubelet package using your package manager.
+
+# Upgrade kubelet and kubectl utility
+root@node01🥃 ~ apt-get update && apt-get install -y --allow-change-held-packages kubelet=1.26.0-00 kubectl=1.26.0-00
+
+Preparing to unpack .../kubectl_1.26.0-00_amd64.deb ...
+Unpacking kubectl (1.26.0-00) over (1.25.0-00) ...
+Preparing to unpack .../kubelet_1.26.0-00_amd64.deb ...
+/usr/sbin/policy-rc.d returned 101, not running 'stop kubelet.service'
+Unpacking kubelet (1.26.0-00) over (1.25.0-00) ...
+Setting up kubectl (1.26.0-00) ...
+Setting up kubelet (1.26.0-00) ...
+/usr/sbin/policy-rc.d returned 101, not running 'start kubelet.service'
+
+# Restart Kubelet
+root@node01🥃 ~ systemctl daemon-reload
+root@node01🥃 ~ systemctl restart kubelet
+
+
+root@node01🥃 ~ exit
+
+logout
+Connection to 192.12.187.6 closed.
+
+vagrant@kubemaster🥃 ~ ➜  kubectl uncordon node01
+node/node01 uncordoned
+```

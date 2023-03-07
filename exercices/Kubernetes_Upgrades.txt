@@ -1,0 +1,260 @@
+Q:
+--
+This lab tests your skills on upgrading a kubernetes cluster. We have a production cluster with applications running on it. Let us explore the setup first.
+What is the current version of the cluster?
+
+
+A:
+--
+
+1) Run: kubectl get nodes and look at the VERSION
+
+$ kubectl get nodes
+
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   46m   v1.25.0
+node01         Ready    <none>          45m   v1.25.0
+
+
+===============================================================================================================================
+
+Q:
+--
+How many nodes can host workloads in this cluster ?
+
+
+A:
+--
+Check the taints on both controlplane and node01. If none exists, then both nodes can host workloads.
+
+$ kubectl describe nodes  controlplane | grep -i taint
+Taints:             <none>
+
+$ kubectl describe nodes  node01 | grep -i taint
+Taints:             <none>
+
+
+===============================================================================================================================
+
+Q:
+--
+How many applications are hosted on the cluster ?
+Count the number of deployments in the default namespace.
+
+
+A:
+--
+$ kubectl describe deployment blue
+1
+
+```
+Pod Template:
+  Labels:  app=blue
+  Containers:
+   nginx:
+    Image:        nginx:alpine
+    Port:         80/TCP
+    Host Port:    0/TCP
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+```
+
+$ kubectl get deployments
+
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+blue   5/5     5            5           3m41s 
+
+
+===============================================================================================================================
+
+Q:
+--
+You are tasked to upgrade the cluster. 
+Users accessing the applications must not be impacted, and you cannot provision new VMs. 
+What strategy would you use to upgrade the cluster?
+
+
+A:
+--
+In order to ensure minimum downtime, upgrade the cluster one node at a time, while moving the workloads to another node.
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the latest stable version of Kubernetes as of today ?
+Look at the remote version in the output of the kubeadm upgrade plan command.
+
+
+A:
+--
+$ kubeadm upgrade plan | grep remote
+
+I0307 13:48:43.093143   15614 version.go:256] remote version is much newer: v1.26.2; falling back to: stable-1.25
+
+
+===============================================================================================================================
+
+Q:
+--
+We will be upgrading the controlplane node first. Drain the controlplane node of workloads and mark it UnSchedulable
+
+
+A:
+--
+There are daemonsets created in this cluster, especially in the kube-system namespace. 
+To ignore these objects and drain the node, we can make use of the --ignore-daemonsets flag.
+
+$  kubectl drain controlplane --ignore-daemonsets
+
+node/controlplane cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-vs9zw, kube-system/kube-proxy-v7dkx
+evicting pod kube-system/coredns-565d847f94-9nrxs
+evicting pod default/blue-5db6db69f7-xl2xl
+evicting pod default/blue-5db6db69f7-kz28q
+evicting pod kube-system/coredns-565d847f94-52k99
+pod/blue-5db6db69f7-xl2xl evicted
+pod/blue-5db6db69f7-kz28q evicted
+pod/coredns-565d847f94-52k99 evicted
+pod/coredns-565d847f94-9nrxs evicted
+node/controlplane drained
+
+
+===============================================================================================================================
+
+Q:
+--
+Upgrade the controlplane components to exact version v1.26.0
+
+ADVICE :
+--------
+Upgrade the kubeadm tool (if not already), then the controlplane components, and finally the kubelet. 
+Practice referring to the Kubernetes documentation page.
+
+Note: While upgrading kubelet, if you hit dependency issues while running the apt-get upgrade kubelet command, use the apt install kubelet=1.26.0-00 command instead.
+
+
+A:
+--
+On the controlplane node, run the following commands:
+
+
+1) This will update the package lists from the software repository.
+
+$	apt update
+
+
+2) This will install the kubeadm version 1.26.0
+
+$	apt-get install kubeadm=1.26.0-00
+
+
+3) This will upgrade Kubernetes controlplane node.
+
+$	kubeadm upgrade apply v1.26.0
+
+
+Note that the above steps can take a few minutes to complete.
+
+
+4) This will update the kubelet with the version 1.26.0.
+
+$	apt-get install kubelet=1.26.0-00 
+
+
+5) You may need to reload the daemon and restart kubelet service after it has been upgraded.
+
+$	systemctl daemon-reload
+$	systemctl restart kubelet
+
+
+===============================================================================================================================
+
+Q:
+--
+Mark the controlplane node as "Schedulable" again
+
+
+A:
+--
+$ kubectl uncordon controlplane
+
+
+===============================================================================================================================
+
+Q:
+--
+Next is the worker node. Drain the worker node of the workloads and mark it UnSchedulable
+
+
+A:
+--
+$ kubectl drain node01 --ignore-daemonsets
+
+node/node01 cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-sxrnz, kube-system/kube-proxy-kl64x
+evicting pod kube-system/coredns-787d4945fb-tjm8f
+evicting pod default/blue-5db6db69f7-khr86
+evicting pod default/blue-5db6db69f7-2ljcm
+evicting pod default/blue-5db6db69f7-tgcwm
+evicting pod default/blue-5db6db69f7-hf8k5
+evicting pod kube-system/coredns-787d4945fb-jvvfx
+evicting pod default/blue-5db6db69f7-sb9q6
+I0309 03:48:28.500684   27811 request.go:601] Waited for 1.016778389s due to client-side throttling, not priority and fairness, request: GET:https://controlplane:6443/api/v1/namespaces/default/pods/blue-5db6db69f7-tgcwm
+pod/blue-5db6db69f7-tgcwm evicted
+pod/blue-5db6db69f7-2ljcm evicted
+pod/blue-5db6db69f7-sb9q6 evicted
+pod/blue-5db6db69f7-hf8k5 evicted
+pod/blue-5db6db69f7-khr86 evicted
+pod/coredns-787d4945fb-jvvfx evicted
+pod/coredns-787d4945fb-tjm8f evicted
+node/node01 drained
+
+
+===============================================================================================================================
+
+Q:
+--
+Upgrade the worker node to the exact version v1.26.0
+
+
+A:
+--
+Make sure that the correct version of kubeadm is installed and then proceed to upgrade the node01 node. Once this is done, upgrade the kubelet on the node.
+
+1) If you are on the controlplane node, run ssh node01 to log in to the node01
+
+$ ssh node01
+
+
+2) This will update the package lists from the software repository.
+
+$ apt-get update
+
+
+3) This will install the kubeadm version 1.26.0.
+
+$ apt-get install kubeadm=1.26.0-00
+
+
+4) This will upgrade the node01 configuration.
+
+$ kubeadm upgrade node
+
+
+5) This will update the kubelet with the version 1.26.0
+
+$ apt-get install kubelet=1.26.0-00 
+
+
+6) You may need to reload the daemon and restart kubelet service after it has been upgraded.
+
+$ systemctl daemon-reload
+$ systemctl restart kubelet
+
+
+7) Type exit or logout or enter CTRL + d to go back to the controlplane node.
+
+$ exit
