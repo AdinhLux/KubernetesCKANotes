@@ -2132,3 +2132,129 @@ Connection to 192.12.187.6 closed.
 vagrant@kubemaster🥃 ~ ➜  kubectl uncordon node01
 node/node01 uncordoned
 ```
+
+&nbsp;
+
+### <ins>**Backup and Restore**</ins>
+
+> - We have deployed a number of applications using `deployment`, `pods` and `service` definition files.
+> - `ETCD` is where all cluster-related information is stored
+> - The application are configured with persistent storage
+
+&nbsp;
+
+#### <ins>Backup</ins>
+
+Where to save all configuration files ? One best approach will be to a repository like `Github`
+
+<br/>
+
+#### <mark>**How to retrieve ALL Resource Configuration files ?**</mark>
+
+<br/>
+
+- <ins>**Option 1 :**</ins> Using `kubectl` command to retrieve informations about PODs, RS, Deployment.
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get all --all-namespaces -o yaml > all-deploy-services.yaml
+```
+
+- <ins>**Option 2 :**</ins> Backup `ETCD`.
+
+<div align="center">
+  <a href="CKA_Storage_1.jpg" target="_blank">
+    <img src="assets/CKA_Storage_1.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>You can see where we store all the files <b>in the highlighted text</b>.</i>
+</div>
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Storage_2.jpg" target="_blank">
+    <img src="assets/CKA_Storage_2.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>ETCD also comes with a built-in <b>snapshot</b> solution. We can take a snapshot of the ETCD database by using etcdctl utility (here we gives the snapshot's name, <b>snapshot.db</b>).</i>
+</div>
+
+&nbsp;
+
+#### <ins>Restore</ins>
+
+To restore `ETCD` server :
+
+- Stop the `Kube API server` service
+
+```bash
+vagrant@kubemaster🥃 ~ service kube-apiserver stop
+```
+
+- Run the etcdctl snapshot restore command with the path set to the path of the backup file `snapshot.db`
+
+```bash
+vagrant@kubemaster🥃 ~ ETCDCTL_API=3 etcdctl snapshot restore snapshot.db --data-dir /var/lib/etcd-from-backup
+```
+
+<div align="center">
+  <a href="CKA_Storage_3.jpg" target="_blank">
+    <img src="assets/CKA_Storage_3.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>When ETCD restores from a backup, <b>it initializes a new cluster configuration and configures the members of ETCD as new members to a new cluster</b>. It is to prevent a new member from accidentally joining an existing cluster. On running this command, a new data directory is created. We <b>then edit the ETCD configuration file</b> to use the new data directory.</i>
+</div>
+
+<br/>
+
+- Reload daemon and restart the service
+
+```bash
+vagrant@kubemaster🥃 ~ systemctl daemon-reload
+vagrant@kubemaster🥃 ~ service etcd restart
+```
+
+- Start the `Kube API server` service
+
+```bash
+vagrant@kubemaster🥃 ~ service kube-apiserver start
+```
+
+&nbsp;
+
+> ## <ins>REMINDER with `etcdctl` command</ins>
+>
+> ❗❕ At `1st command call`, you must specify :
+>
+> - ➡️ the certificate file for authentication
+>
+> ```bash
+> # Verify certificates of TLS-enabled secure servers using this CA bundle
+> --cacert=/etc/etcd/ca.crt
+> ```
+>
+> <br/>
+>
+> - ➡️ the ETCD cluster endpoint
+>
+> ```bash
+> # This is the default as ETCD is running on master node and exposed on localhost 2379
+> --endpoints=https://127.0.0.1:2379
+> ```
+>
+> <br/>
+>
+> - ➡️ the ETCD certificate and key
+>
+> ```bash
+> # Identify secure client using this TLS certificate file
+> --cert=/etc/etcd/etcd server.crt
+> # Identify secure client using this TLS key file
+> --key=/etc/etcd/etcd server.key
+> ```
