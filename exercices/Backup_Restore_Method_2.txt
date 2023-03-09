@@ -1,0 +1,493 @@
+In this lab environment, you will get to work with multiple kubernetes clusters where we will practice backing up and restoring the ETCD database.
+
+You will notice that, you are logged in to the student-node (instead of the controlplane).
+The student-node has the kubectl client and has access to all the Kubernetes clusters that are configured in thie lab environment.
+Before proceeding to the next question, explore the student-node and the clusters it has access to.
+
+
+
+
+Q:
+--
+How many clusters are defined in the kubeconfig on the student-node ?
+You can make use of the kubectl config command.
+
+
+A:
+--
+$ kubectl config view
+
+```
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://cluster1-controlplane:6443
+  name: cluster1
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://192.24.161.17:6443
+  name: cluster2
+contexts:
+- context:
+    cluster: cluster1
+    user: cluster1
+  name: cluster1
+- context:
+    cluster: cluster2
+    user: cluster2
+  name: cluster2
+current-context: cluster1
+kind: Config
+preferences: {}
+users:
+- name: cluster1
+  user:
+    client-certificate-data: REDACTED
+    client-key-data: REDACTED
+- name: cluster2
+  user:
+    client-certificate-data: REDACTED
+    client-key-data: REDACTED
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+How many nodes (both controlplane and worker) are part of cluster1 ?
+Make sure to switch the context to cluster1
+
+
+A:
+--
+$ kubectl config use-context cluster1
+
+Switched to context "cluster1".
+
+$ kubectl get nodes
+
+NAME                    STATUS   ROLES           AGE   VERSION
+cluster1-controlplane   Ready    control-plane   52m   v1.24.0
+cluster1-node01         Ready    <none>          51m   v1.24.0
+
+
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+
+You can SSH to all the nodes (of both clusters) from the student-node :
+
+```
+student-node ~ ➜  ssh cluster1-controlplane
+Welcome to Ubuntu 18.04.6 LTS (GNU/Linux 5.4.0-1086-gcp x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+This system has been minimized by removing packages and content that are
+not required on a system that users do not log into.
+
+To restore this content, you can run the 'unminimize' command.
+
+cluster1-controlplane ~ ➜ 
+```
+
+To get back to the student node, use the logout or exit command, or, hit Control +D
+
+```
+cluster1-controlplane ~ ➜  logout
+Connection to cluster1-controlplane closed.
+
+student-node ~ ➜  
+```
+
+
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+
+Q:
+--
+How is ETCD configured for cluster1 ?
+Remember, you can access the clusters from student-node using the kubectl tool. You can also ssh to the cluster nodes from the student-node.
+
+
+A:
+--
+$ kubectl config use-context cluster1
+
+Switched to context "cluster1".
+
+
+$ kubectl get pods -n kube-system | grep etcd
+
+etcd-cluster1-controlplane                      1/1     Running   0             55m
+
+
+This means that ETCD is set up as a Stacked ETCD Topology (contrary to External ETCD)
+where the distributed data storage cluster provided by etcd is stacked on top of the cluster formed by the nodes managed by kubeadm that run control plane components.
+
+
+===============================================================================================================================
+
+Q:
+--
+How is ETCD configured for cluster2 ?
+Remember, you can access the clusters from student-node using the kubectl tool. You can also ssh to the cluster nodes from the student-node.
+
+
+A:
+--
+$ kubectl config use-context cluster2
+
+Switched to context "cluster2".
+
+
+1) If you check out the pods running in the kube-system namespace in cluster2, you will notice that there are NO etcd pods running in this cluster!
+
+$ kubectl get pods -n kube-system | grep etcd
+
+
+2) Also, there is NO static pod configuration for etcd under the static pod path
+
+student-node ~ ✖ ssh cluster2-controlplane
+cluster2-controlplane ~ ➜  ls /etc/kubernetes/manifests/ | grep -i etcd
+cluster2-controlplane ~ ✖
+
+
+3) However, if you inspect the process on the controlplane for cluster2, you will see that that the process for the kube-apiserver is referencing an external etcd datastore
+
+cluster2-controlplane ~ ✖ ps -ef | grep etcd
+root        1705    1320  0 05:03 ?        00:00:31 kube-apiserver --advertise-address=10.1.127.3 --allow-privileged=true --authorization-mode=Node,RBAC --client-ca-file=/etc/kubernetes/pki/ca.crt --enable-admission-plugins=NodeRestriction --enable-bootstrap-token-auth=true --etcd-cafile=/etc/kubernetes/pki/etcd/ca.pem --etcd-certfile=/etc/kubernetes/pki/etcd/etcd.pem --etcd-keyfile=/etc/kubernetes/pki/etcd/etcd-key.pem --etcd-servers=https://10.1.127.10:2379 --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key --requestheader-allowed-names=front-proxy-client --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt --requestheader-extra-headers-prefix=X-Remote-Extra- --requestheader-group-headers=X-Remote-Group --requestheader-username-headers=X-Remote-User --secure-port=6443 --service-account-issuer=https://kubernetes.default.svc.cluster.local --service-account-key-file=/etc/kubernetes/pki/sa.pub --service-account-signing-key-file=/etc/kubernetes/pki/sa.key --service-cluster-ip-range=10.96.0.0/12 --tls-cert-file=/etc/kubernetes/pki/apiserver.crt --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+root        5754    5601  0 05:15 pts/0    00:00:00 grep etcd
+
+cluster2-controlplane ~ ➜  
+
+
+4) You can see the same information by inspecting the kube-apiserver pod (which runs as a static pod in the kube-system namespace):
+
+cluster2-controlplane ~ ➜  kubectl -n kube-system describe pod kube-apiserver-cluster2-controlplane
+
+```
+Name:                 kube-apiserver-cluster2-controlplane
+Namespace:            kube-system
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Node:                 cluster2-controlplane/10.1.127.3
+Start Time:           Wed, 31 Aug 2022 05:03:45 +0000
+Labels:               component=kube-apiserver
+                      tier=control-plane
+Annotations:          kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 10.1.127.3:6443
+                      kubernetes.io/config.hash: 9bd4c04b38b27661e9e7f8b0fc1237b8
+                      kubernetes.io/config.mirror: 9bd4c04b38b27661e9e7f8b0fc1237b8
+                      kubernetes.io/config.seen: 2022-08-31T05:03:28.843162256Z
+                      kubernetes.io/config.source: file
+                      seccomp.security.alpha.kubernetes.io/pod: runtime/default
+Status:               Running
+IP:                   10.1.127.3
+IPs:
+  IP:           10.1.127.3
+Controlled By:  Node/cluster2-controlplane
+Containers:
+  kube-apiserver:
+    Container ID:  containerd://cc64f3649222f24d3fd2eb7d5f0f17db5fca76eb72dc4c17295fb4842c045f1b
+    Image:         k8s.gcr.io/kube-apiserver:v1.24.0
+    Image ID:      k8s.gcr.io/kube-apiserver@sha256:a04522b882e919de6141b47d72393fb01226c78e7388400f966198222558c955
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      kube-apiserver
+      --advertise-address=10.1.127.3
+      --allow-privileged=true
+      --authorization-mode=Node,RBAC
+      --client-ca-file=/etc/kubernetes/pki/ca.crt
+      --enable-admission-plugins=NodeRestriction
+      --enable-bootstrap-token-auth=true
+      --etcd-cafile=/etc/kubernetes/pki/etcd/ca.pem
+      --etcd-certfile=/etc/kubernetes/pki/etcd/etcd.pem
+      --etcd-keyfile=/etc/kubernetes/pki/etcd/etcd-key.pem
+      --etcd-servers=https://10.1.127.10:2379
+--------- End of Snippet---------
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the IP address of the External ETCD datastore used in cluster2 ?
+
+
+A:
+--
+$ ssh cluster2-controlplane ps -ef | grep etcd
+root        1795    1370  0 14:17 ?        
+
+00:03:41 kube-apiserver --advertise-address=192.24.175.23 --allow-privileged=true --authorization-mode=Node,RBAC 
+--client-ca-file=/etc/kubernetes/pki/ca.crt --enable-admission-plugins=NodeRestriction --enable-bootstrap-token-auth=true 
+--etcd-cafile=/etc/kubernetes/pkietcd/ca.pem --etcd-certfile=/etc/kubernetes/pki/etcd/etcd.pem --etcd-keyfile=/etc/kubernetes/pki/etcd/etcd-key.pem 
+--etcd-servers=https://192.24.175.12:2379 --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt 
+--kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname 
+--proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key 
+--requestheader-allowed-names=front-proxy-client --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt --requestheader-extra-headers-prefix=X-Remote-Extra- 
+--requestheader-group-headers=X-Remote-Group --requestheader-username-headers=X-Remote-User --secure-port=6443 --service-account-issuer=https://kubernetes.default.svc.cluster.local 
+--service-account-key-file=/etc/kubernetes/pki/sa.pub --service-account-signing-key-file=/etc/kubernetes/pki/sa.key --service-cluster-ip-range=10.96.0.0/12 
+--tls-cert-file=/etc/kubernetes/pki/apiserver.crt --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the default data directory used the for ETCD datastore used in cluster1?
+Remember, this cluster uses a Stacked ETCD topology.
+
+
+A:
+--
+$ kubectl config use-context cluster1
+$ kubectl -n kube-system describe pod etcd-cluster1-controlplane | grep data-dir
+
+      --data-dir=/var/lib/etcd
+	  
+	  
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+
+For the subsequent questions, you would need to login to the External ETCD server.
+
+To do this, open a new terminal (using the + button located above the default terminal).
+
+From the new terminal you can now SSH from the student-node to either the IP of the ETCD datastore (that you identified in the previous questions) OR the hostname etcd-server:
+
+student-node ~ ssh 10.1.193.3
+student-node ~ ssh etcd-server
+
+
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+==============================================================================================================================================================================================================================================================
+
+Q:
+--
+What is the default data directory used the for ETCD datastore used in cluster2?
+Remember, this cluster uses an External ETCD topology.
+
+
+A:
+--
+
+$ ssh cluster2-controlplane ps -ef | grep etcd
+
+# Connect to ETCD server
+$ ssh 192.24.175.12
+
+```
+Welcome to Ubuntu 18.04.6 LTS (GNU/Linux 5.4.0-1101-gcp x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+This system has been minimized by removing packages and content that are
+not required on a system that users do not log into.
+
+To restore this content, you can run the 'unminimize' command.
+
+etcd-server ~ ➜ ps -ef | grep etcd
+
+etcd         908       1  0 14:20 ?        00:01:36 /usr/local/bin/etcd --name etcd-server --data-dir=/var/lib/etcd-data 
+--cert-file=/etc/etcd/pki/etcd.pem --key-file=/etc/etcd/pki/etcd-key.pem --peer-cert-file=/etc/etcd/pki/etcd.pem --peer-key-file=/etc/etcd/pki/etcd-key.pem 
+--trusted-ca-file=/etc/etcd/pki/ca.pem --peer-trusted-ca-file=/etc/etcd/pki/ca.pem --peer-client-cert-auth --client-cert-auth --initial-advertise-peer-urls https://192.24.175.12:2380 
+--listen-peer-urls https://192.24.175.12:2380 --advertise-client-urls https://192.24.175.12:2379 --listen-client-urls https://192.24.175.12:2379,https://127.0.0.1:2379 
+--initial-cluster-token etcd-cluster-1 --initial-cluster etcd-server=https://192.24.175.12:2380 --initial-cluster-state new
+root        1090    1013  0 15:37 pts/0    00:00:00 grep etcd
+```
+
+
+==============================================================================================================================================================================================================================================================
+
+Q:
+--
+How many nodes are part of the ETCD cluster that etcd-server is a part of ?
+
+
+A:
+--
+# This shows that there is only one member in this cluster.
+
+$ ETCDCTL_API=3 etcdctl \
+ --endpoints=https://127.0.0.1:2379 \
+ --cacert=/etc/etcd/pki/ca.pem \
+ --cert=/etc/etcd/pki/etcd.pem \
+ --key=/etc/etcd/pki/etcd-key.pem \
+  member list
+  
+e61c45b62264673f, started, etcd-server, https://192.24.175.12:2380, https://192.24.175.12:2379, false
+
+
+==============================================================================================================================================================================================================================================================
+
+Q:
+--
+Take a backup of etcd on cluster1 and save it on the student-node at the path /opt/cluster1.db
+
+
+A:
+--
+$ kubectl config use-context cluster1
+
+# Next, inspect the endpoints and certificates used by the etcd pod. We will make use of these to take the backup.
+
+student-node ~ ➜  kubectl describe  pods -n kube-system etcd-cluster1-controlplane  | grep advertise-client-urls
+Annotations:          kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.24.175.21:2379
+      --advertise-client-urls=https://192.24.175.21:2379
+	  
+	  
+student-node ~ ➜  kubectl describe  pods -n kube-system etcd-cluster1-controlplane  | grep pki
+      --cert-file=/etc/kubernetes/pki/etcd/server.crt
+      --key-file=/etc/kubernetes/pki/etcd/server.key
+      --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+      --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+      --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+      --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+      /etc/kubernetes/pki/etcd from etcd-certs (rw)
+    Path:          /etc/kubernetes/pki/etcd
+	
+	
+# SSH to the controlplane node of cluster1 and then take the backup using the endpoints and certificates we identified above:
+student-node ~ ➜ ssh cluster1-controlplane
+
+
+# Get ETCD POD IP address
+cluster1-controlplane ~ ➜ kubectl get pods -n kube-system -o wide
+
+NAME                                            READY   STATUS    RESTARTS      AGE   IP              NODE                    NOMINATED NODE   READINESS GATES
+coredns-6d4b75cb6d-drpxq                        1/1     Running   0             93m   10.50.0.3       cluster1-controlplane   <none>           <none>
+coredns-6d4b75cb6d-n29zc                        1/1     Running   0             93m   10.50.0.1       cluster1-controlplane   <none>           <none>
+etcd-cluster1-controlplane                      1/1     Running   0             94m   192.24.175.21   cluster1-controlplane   <none>           <none>
+kube-apiserver-cluster1-controlplane            1/1     Running   0             94m   192.24.175.21   cluster1-controlplane   <none>           <none>
+kube-controller-manager-cluster1-controlplane   1/1     Running   0             94m   192.24.175.21   cluster1-controlplane   <none>           <none>
+kube-proxy-wzkf4                                1/1     Running   0             93m   192.24.175.3    cluster1-node01         <none>           <none>
+kube-proxy-zkf4d                                1/1     Running   0             93m   192.24.175.21   cluster1-controlplane   <none>           <none>
+kube-scheduler-cluster1-controlplane            1/1     Running   0             94m   192.24.175.21   cluster1-controlplane   <none>           <none>
+weave-net-dq6wb                                 2/2     Running   0             93m   192.24.175.3    cluster1-node01         <none>           <none>
+weave-net-vdtwb                                 2/2     Running   1 (93m ago)   93m   192.24.175.21   cluster1-controlplane   <none>           <none>
+
+
+cluster1-controlplane ~ ➜ ETCDCTL_API=3 etcdctl --endpoints=https://192.24.175.21:2379 \
+> --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+> --cert=/etc/kubernetes/pki/etcd/server.crt \
+> --key=/etc/kubernetes/pki/etcd/server.key \
+> snapshot save /opt/cluster1.db
+
+Snapshot saved at /opt/cluster1.db
+
+
+# Finally, copy the backup to the student-node. To do this, go back to the student-node and use scp as shown below:
+cluster1-controlplane ~ ➜  exit
+
+student-node ~ ➜  scp cluster1-controlplane:/opt/cluster1.db /opt
+cluster1.db                                                                                          100% 2008KB 105.5MB/s   00:00    
+
+
+==============================================================================================================================================================================================================================================================
+
+Q:
+--
+An ETCD backup for cluster2 is stored at /opt/cluster2.db. Use this snapshot file to carryout a restore on cluster2 to a new path /var/lib/etcd-data-new.
+
+Once the restore is complete, ensure that the controlplane components on cluster2 are running.
+The snapshot was taken when there were objects created in the critical namespace on cluster2. These objects should be available post restore.
+
+
+A:
+--
+# Step 1. Copy the snapshot file from the student-node to the etcd-server. In the example below, we are copying it to the /root directory:
+student-node ~ ➜  scp /opt/cluster2.db etcd-server:/root
+cluster2.db                                                                                          100% 2052KB 114.7MB/s   00:00
+
+
+# Step 2: Restore the snapshot on the cluster2. Since we are restoring directly on the etcd-server, we can use the endpoint https:/127.0.0.1. 
+# Use the same certificates that were identified earlier. Make sure to use the data-dir as /var/lib/etcd-data-new:
+
+student-node ~ ➜ ssh 192.24.175.12
+Welcome to Ubuntu 18.04.6 LTS (GNU/Linux 5.4.0-1101-gcp x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/advantage
+This system has been minimized by removing packages and content that are
+not required on a system that users do not log into.
+
+To restore this content, you can run the 'unminimize' command.
+Last login: Thu Mar  9 15:36:50 2023 from 192.24.175.18
+
+etcd-server ~ ➜ ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/pki/ca.pem --cert=/etc/etcd/pki/etcd.pem --key=/etc/etcd/pki/etcd-key.pem snapshot restore /root/cluster2.db --data-dir /var/lib/etcd-data-new
+
+{"level":"info","ts":1678377498.6313891,"caller":"snapshot/v3_snapshot.go:296","msg":"restoring snapshot","path":"/root/cluster2.db","wal-dir":"/var/lib/etcd-data-new/member/wal","data-dir":"/var/lib/etcd-data-new","snap-dir":"/var/lib/etcd-data-new/member/snap"}
+{"level":"info","ts":1678377498.6980257,"caller":"mvcc/kvstore.go:388","msg":"restored last compact revision","meta-bucket-name":"meta","meta-bucket-name-key":"finishedCompactRev","restored-compact-revision":7498}
+{"level":"info","ts":1678377498.7471104,"caller":"membership/cluster.go:392","msg":"added member","cluster-id":"cdf818194e3a8c32","local-member-id":"0","added-peer-id":"8e9e05c52164694d","added-peer-peer-urls":["http://localhost:2380"]}
+{"level":"info","ts":1678377498.8251514,"caller":"snapshot/v3_snapshot.go:309","msg":"restored snapshot","path":"/root/cluster2.db","wal-dir":"/var/lib/etcd-data-new/member/wal","data-dir":"/var/lib/etcd-data-new","snap-dir":"/var/lib/etcd-data-new/member/snap"}
+
+
+# Step 3: Update the systemd service unit file for etcd by running vi /etc/systemd/system/etcd.service and add the new value for data-dir:
+etcd-server ~ ➜ vi /etc/systemd/system/etcd.service
+
+```
+[Unit]
+Description=etcd key-value store
+Documentation=https://github.com/etcd-io/etcd
+After=network.target
+
+[Service]
+User=etcd
+Type=notify
+ExecStart=/usr/local/bin/etcd \
+  --name etcd-server \
+#  --data-dir=/var/lib/etcd-data \  								# REMOVE THIS LINE AFTER MODIF or etcd.service restart will fail !!!!!!!!!!!!
+  --data-dir=/var/lib/etcd-data-new \
+  --cert-file=/etc/etcd/pki/etcd.pem \
+  --key-file=/etc/etcd/pki/etcd-key.pem \
+  --peer-cert-file=/etc/etcd/pki/etcd.pem \
+  --peer-key-file=/etc/etcd/pki/etcd-key.pem \
+  --trusted-ca-file=/etc/etcd/pki/ca.pem \
+  --peer-trusted-ca-file=/etc/etcd/pki/ca.pem \
+  --peer-client-cert-auth \
+  --client-cert-auth \
+  --initial-advertise-peer-urls https://192.24.175.12:2380 \
+  --listen-peer-urls https://192.24.175.12:2380 \
+  --advertise-client-urls https://192.24.175.12:2379 \
+  --listen-client-urls https://192.24.175.12:2379,https://127.0.0.1:2379 \
+  --initial-cluster-token etcd-cluster-1 \
+  --initial-cluster etcd-server=https://192.24.175.12:2380 \
+  --initial-cluster-state new
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=40000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+
+# Step 4: make sure the permissions on the new directory is correct (should be owned by etcd user):
+etcd-server ~ ➜  cd /var/lib
+etcd-server /var/lib ➜  chown -R etcd:etcd /var/lib/etcd-data-new
+etcd-server /var/lib ➜  ls -ld /var/lib/etcd-data-new/
+
+drwx------ 3 etcd etcd 4096 Mar  9 15:58 /var/lib/etcd-data-new/
+
+
+# Step 5: Finally, reload and restart the etcd service.
+
+etcd-server /var/lib ✖ systemctl daemon-reload
+etcd-server /var/lib ✖ systemctl restart etcd
+
+Job for etcd.service failed because the control process exited with error code.
+See "systemctl status etcd.service" and "journalctl -xe" for details.
+
+
+# Step 6 (optional): It is recommended to restart controlplane components (e.g. kube-scheduler, kube-controller-manager, kubelet) to ensure that they don't rely on some stale data.
