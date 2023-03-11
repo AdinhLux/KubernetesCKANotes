@@ -2258,3 +2258,88 @@ vagrant@kubemaster🥃 ~ service kube-apiserver start
 > # Identify secure client using this TLS key file
 > --key=/etc/etcd/etcd server.key
 > ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Security
+
+We will see :
+
+- how does someone gain accessto the cluster ?
+- how their actions are controlled
+- etc.
+
+&nbsp;
+
+### <ins>**Security Primitives**</ins>
+
+<br/>
+
+Here some various security primitives in Kubernetes
+
+> ### 1. Secure Hosts
+
+All access to the hosts must be secured
+
+- Route access disabled
+- Password based authentication disabled
+- ONLY SSH Key based authentication AVZAILABLE
+- Etc.
+
+<br/>
+
+> ### 2. Secure Kubernetes
+
+The <ins>**1st line fo defense**</ins> : controlling the access to the `API server`
+
+- Who can access the server ? ➡️ Defined by the authentication mechanisms
+
+  - Files where we store Username and Passwords
+  - Files where we store Username and Tokens
+  - Certificates
+  - Integration with external providers like `LDAP`
+  - For machines, we create Service Accounts
+
+  <br/>
+
+- What can they do ? ➡️ Defined by the authorization mechanisms
+
+  - Role based access control (where users are associated to groups with specific permissions)
+  - Attribute based access control
+  - Node auhtorizers
+  - Webhook mode
+  - etc.
+
+<br/>
+
+> ### 3. TLS Certificates
+
+All communications with the cluster between the various vomponents such as ETCD cluster, API server, as well as those running on the worker nodes such as the **Kubelet** and **Kube Proxy**, is secured using TLS encryption.
+
+<div align="center">
+  <a href="CKA_Security_1.jpg" target="_blank">
+    <img src="assets/CKA_Security_1.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> ### 4. Network Policies
+
+What about the communication within the cluster ? **By default, all PODs can access all other PODs**
+
+We can now **restrict access between them** using `Network Policies`
+
+<div align="center">
+  <a href="CKA_Security_2.jpg" target="_blank">
+    <img src="assets/CKA_Security_2.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+### <ins>**Authentication**</ins>
