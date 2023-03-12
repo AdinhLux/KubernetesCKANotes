@@ -2343,3 +2343,74 @@ We can now **restrict access between them** using `Network Policies`
 &nbsp;
 
 ### <ins>**Authentication**</ins>
+
+Two types of users that require access to the cluster :
+
+- Human users such as administrators and developers
+
+> Kubernetes does `NOT manage User accounts natively`, it relies on one of the options :
+>
+> - a file with User details
+>   - A `static password file` where we have a list of usernames and passwords (<mark>**Deprecated in Kubernetes version 1.19**</mark>)
+>   <br/>
+>   <div align="center">
+>     <a href="CKA_Security_6.jpg" target="_blank">
+>      <img src="assets/CKA_Security_6.jpg" alt="Settings_1" width="600" height="300"/>
+>     </a>
+>   </div>
+>   <br/>
+>   - A `static token file` where we have a list of usernames and tokens (<mark>**Deprecated in Kubernetes version 1.19**</mark>)
+>   <br/>
+>    <div align="center">
+>      <a href="CKA_Security_5.jpg" target="_blank">
+>       <img src="assets/CKA_Security_5.jpg" alt="Settings_1" width="600" height="300"/>
+>      </a>
+>    </div>
+>    <br/>
+> - TLS Certificates
+> - 3rd party identity services like LDAP, Kerberos, etc.
+
+<br/>
+
+- Robots such as processes or services or applications
+
+> Kubernetes `CAN manage Service accounts natively`
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_3.jpg" target="_blank">
+    <img src="assets/CKA_Security_3.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark>**How does API authenticates ?**</mark>
+
+<br/>
+
+All User access is managed by the `API server` whether you're accessing the cluster through Kube Control tool or the API directly. All of these requests go through the Kube API server.
+
+The API authenticates the request before processing it.
+
+<div align="center">
+  <a href="CKA_Security_4.jpg" target="_blank">
+    <img src="assets/CKA_Security_4.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+### <ins>**TLS Certificates**</ins>
+
+<br/>
+
+We will see :
+
+- What are TLS Certificates ?
+- How does K8S use Certificates ?
+- How to generate them ?
+- How to configure them ?
+- How to view them ?
+- How to troubleshoot issues realted to Certificates ?
