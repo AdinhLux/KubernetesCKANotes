@@ -2414,3 +2414,241 @@ We will see :
 - How to configure them ?
 - How to view them ?
 - How to troubleshoot issues realted to Certificates ?
+
+&nbsp;
+
+#### <ins>TLS Certificate Basics</ins> (**INCOMPLETE**)
+
+<br/>
+
+The following scenario : an user attempt to connect to its bank account. A hacker, sniffing the network can catch the credentials and hack the bank account.
+
+> We must encrypt the data transferred, using `encryption keys`
+
+- <ins>**Symmetric Encryption**</ins> : we share a common key between the client and the server for encrypting / decrypting the message.
+
+  ❌ The hacker can still catch the key and decrypt the message.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_11.jpg" target="_blank">
+    <img src="assets/CKA_Security_11.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+- <ins>**Asymmetric Encryption**</ins> : instead of using a single key to encrypt / decrypt data, this encryption uses a pair of keys
+
+  - `private` key : you can on yourself. You don't share
+  - `public` key
+
+  In the example :
+
+  - The server generates a pair of keys and provides the public key.
+  - The hacker is sniffing the network and catches the public key
+  - The client's browser `encrypts its own public key`, using the one from the server, and sends it to the server.
+  - The hacker gets a copy.
+  - The server `uses its private key` to decrypt the message and `retrieves the client's symetric key`.
+  - ✅ As the hacker doesn't have any private keys, he can not decrypt the message
+
+  <br/>
+
+  ✅ You can only decrypt the message with the associated key.
+
+  ❌ If the hacker creates a fake website, he can decrypt the message, due the above process.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_12.jpg" target="_blank">
+    <img src="assets/CKA_Security_12.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_13.jpg" target="_blank">
+    <img src="assets/CKA_Security_13.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <a href="CKA_Security_14.jpg" target="_blank">
+    <img src="assets/CKA_Security_14.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+**What if we could look at the key we received from the server and say it is a legitimate key from the real bank server ?**
+
+When the server sends the key, it sends a `Certificate` that has the key in it.
+
+<div align="center">
+  <a href="CKA_Security_15.jpg" target="_blank">
+    <img src="assets/CKA_Security_15.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+A certificate is used to guarantee trust between 2 parties during a transaction. It has information about :
+
+- Who the certificate is issued to ?
+- The server public key
+- The location of that server
+- Etc.
+
+<div align="center">
+  <a href="CKA_Security_16.jpg" target="_blank">
+    <img src="assets/CKA_Security_16.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>On the right,</b> the output of an actual certificate</i>
+</div>
+
+<br/>
+
+#### <mark>**How to verify the certificate is legit ?**</mark>
+
+<br/>
+
+<ins>**The question** :</ins> who signed and issued the certificate ?
+
+When receiving a `self-signed` certificate, all web browsers, built-in with a **certificate validation mechanism**, will warn us.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_17.jpg" target="_blank">
+    <img src="assets/CKA_Security_17.jpg" alt="Settings_1" width="500" height="350"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark><ins>**How to create a legitimate certificate ?**</ins></mark>
+
+That's where `Certificate Authorities` come in : they are well known organizations that can sign and validate certificates for us.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_18.jpg" target="_blank">
+    <img src="assets/CKA_Security_18.jpg" alt="Settings_1" width="500" height="250"/>
+  </a>
+</div>
+
+<br/>
+
+<ins>**Process** :</ins>
+
+- We generate a `Certificate Signing Request (CSR)` using our public key and domain Name of our website.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key my-bank.key -out my-bank.csr
+-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=mydomain.com"
+
+my-bank.key my-bank.csr
+```
+
+- The CA verify our details and once it checks out, they sign the certificate and send it back to us.
+
+<br/>
+
+#### <mark><ins>**How browsers know that the CA is legitimate ?**</ins></mark>
+
+<br/>
+
+A CA has its own set of public and private keepers that is used to sign server certificates :
+
+- It uses its `private key` to sign the certificates
+- The `public keys` of all CAs are built into the browsers : they use the it to validate that the certificate was actually signed by the CA themselves.
+
+&nbsp;
+
+#### <ins>TLS in Kubernetes</ins>
+
+We have 3 types of certificates :
+
+- Server Certificates : configured on the servers
+- Root Certificates : configured on CA servers
+- Client Certificates :
+
+  - configured on the clients.
+  - A server can request a client to verify themselves using this certificate.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_7.jpg" target="_blank">
+    <img src="assets/CKA_Security_7.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+All communication between the nodes must be encrypted. 2 primary requirements, all interactions :
+
+- between services and their clients
+- between Kubernetes components
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_8.jpg" target="_blank">
+    <img src="assets/CKA_Security_8.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Server Certificates**
+
+<br/>
+
+- `Kube-API Server` : exposes HTTPS service. Requires certificate for securing communication with its clients.
+- `ETCD` : stores information about cluster. Requires certificate for securing communication with its clients.
+- `Kubelet` : they are services on worker nodes. Also expose an HTTPS API endpoint that the `Kube-API` talks to interact with worker nodes.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_9.jpg" target="_blank">
+    <img src="assets/CKA_Security_9.jpg" alt="Settings_1" width="300" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Client Certificates**
+
+<br/>
+
+- `Administrator` : he accesses the Kube-API server through the `kubectl`. The asmin user requires a certificate and key pair to authenticate to the Kube-API server.
+- `Kube-Scheduler` : he talks to the Kube-API to look for pods that require scheduling and then get the API server to schedule the pods on the right worker nodes. Like admin user, as it is a client it needs to validate its identity using a client TLS certificate.
+- `Kube-Controller`
+- `Kube-Proxy`
+
+The servers communicate amongst them as well.
+
+- `Kube-API` :
+
+  - it is the only one who communicates with `ETCD`. We can also generate ourselves a new pair of certificates to authenticate to the ETCD server (`apiserver-etcd`)
+  - it also communicates with the `Kubelet` server on each of the worker nodes to monitor them. We can also generate ourselves a new pair of certificates to authenticate to the Kubelet server.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_10.jpg" target="_blank">
+    <img src="assets/CKA_Security_10.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark>**How do we generate these certificates ?**</mark>
+
+<br/>
+
+- First we need a `Certificate Authority` to sign all of these certificates. We can have more than one : 1 specifivally for `ETCD`, and 1 for the rest.
