@@ -2417,7 +2417,9 @@ We will see :
 
 &nbsp;
 
-#### <ins>TLS Certificate Basics</ins> (**INCOMPLETE**)
+> #### <ins>TLS Certificate Basics</ins>
+>
+> ---
 
 <br/>
 
@@ -2567,7 +2569,9 @@ A CA has its own set of public and private keepers that is used to sign server c
 
 &nbsp;
 
-#### <ins>TLS in Kubernetes</ins>
+> #### <ins>TLS in Kubernetes</ins>
+>
+> ---
 
 We have 3 types of certificates :
 
@@ -2647,8 +2651,268 @@ The servers communicate amongst them as well.
 
 <br/>
 
-#### <mark>**How do we generate these certificates ?**</mark>
+#### <ins>**How do we generate these certificates ?**</ins>
 
 <br/>
 
-- First we need a `Certificate Authority` to sign all of these certificates. We can have more than one : 1 specifivally for `ETCD`, and 1 for the rest.
+- First we need a `Certificate Authority` to sign all of these certificates. We can have more than one : 1 specifivally for `ETCD` (ETCD server and ETCD server-client certificates), and 1 for the rest.
+
+<br/>
+
+> #### <ins>**TLS certificates creation**</ins>
+>
+> ---
+
+<br/>
+
+To generate certificates we have different tools
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_19.jpg" target="_blank">
+    <img src="assets/CKA_Security_19.jpg" alt="Settings_1" width="500" height="100"/>
+  </a>
+</div>
+
+<br/>
+
+#### **CA Certificates**
+
+<br/>
+
+1. First we create a `private key` using OpenSSL commands
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out ca.key 2048
+```
+
+2. We generate a `CSR` using OpenSSL commands. It is like a certificate with all of our details but without signature. We specify the name of our component in `Common Name (CN)`
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" -out ca.csr
+```
+
+3. We sign the `Certificate` using OpenSSL x509 commands by specifying the CSR. Since it is for the CA itself, it is a `self-signed certificate` using its own private key.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
+```
+
+> Going forward for all other certificates, we will use the CA key pair to sign them. Now the CA has its private key and route certificate file.
+
+&nbsp;
+
+#### **Client Certificates**
+
+<br/>
+
+<div align="left">
+  <a href="CKA_Security_20.jpg" target="_blank">
+    <img src="assets/CKA_Security_20.jpg" alt="Settings_1" width="400" height="80"/>
+  </a>
+</div>
+
+<br/>
+
+1. First we create a `private key` using OpenSSL commands
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out admin.key 2048
+```
+
+2. We generate a `CSR` using OpenSSL commands. Provide a relevant name in CN fileds for logs. Specifying the OU `System Masters` (with administrative privileges) makes the admin user not identified as a basic user
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key admin.key -subj \
+"/CN=kube-admin/O=system:masters" -out admin.csr
+```
+
+3. We sign the `Certificate` using OpenSSL x509 commands by specifying the CA certificate and CA key. This makes a valid certificate within your cluster.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl x509 -req -in admin.csr –CA ca.crt -CAkey ca.key -out admin.crt
+```
+
+> This whole process of generating a key and a certificate pair is similar to creating an user account for a new user. The certificate is the validated User ID and the key is like its password
+
+<br/>
+
+We execute the same process with the other system components :
+
+<div align="center">
+  <a href="CKA_Security_21.jpg" target="_blank">
+    <img src="assets/CKA_Security_21.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_22.jpg" target="_blank">
+    <img src="assets/CKA_Security_22.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+<div align="center">
+  <a href="CKA_Security_23.jpg" target="_blank">
+    <img src="assets/CKA_Security_23.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_24.jpg" target="_blank">
+    <img src="assets/CKA_Security_24.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **How to use these certificates ?**
+
+For example when managing the cluster using with the Admin user, we can connect :
+
+- using the REST API by passing, the admin crt-key and CA crt.
+
+```bash
+vagrant@kubemaster🥃 ~ curl https://kube-apiserver:6443/api/v1/pods \
+--key admin.key --cert admin.crt
+--cacert ca.crt
+
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {
+    "selfLink": "/api/v1/pods",
+  },
+  "items": []
+}
+```
+
+- using a `kube-config.yaml` within that we specify the API server endpoint details, the certificates to use, etc.
+
+```yaml
+apiVersion: v1
+clusters:
+  - cluster:
+      certificate-authority: ca.crt
+      server: https://kube-apiserver:6443
+    name: kubernetes
+kind: Config
+users:
+  - name: kubernetes-admin
+    user:
+      client-certificate: admin.crt
+      client-key: admin.key
+```
+
+> ## NOTE
+>
+> For various Kubernetes components to verify each other, they all need a copy of `CA's root certificate`. So whenever you configure a server or a client with certificates, you well need to specify CA's root certificate as well.
+
+<div align="center">
+  <a href="CKA_Security_25.jpg" target="_blank">
+    <img src="assets/CKA_Security_25.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Server Certificates**
+
+<br/>
+
+> ETCD
+
+We follow the same procedure for generating a certificate for ETCD. `ETCD server can be deployed as a cluster accross multiple servers in HA environment`.
+
+To secure the communication between members in the cluster, we muste generate additional `peer certificates`.
+
+<div align="center">
+  <a href="CKA_Security_26.jpg" target="_blank">
+    <img src="assets/CKA_Security_26.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+
+</div>
+
+<br/>
+
+Once the certificates are generated, specify them while starting the ETCD server.
+
+<div align="center">
+  <a href="CKA_Security_27.jpg" target="_blank">
+    <img src="assets/CKA_Security_27.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> API server
+
+- Generate the key
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out apiserver.key 2048
+```
+
+- Generate the CSR
+- All of the alternate names should be present in the certificate by using an `openssl.cnf`
+- Sign the certificate with CA key and root certificate
+
+<div align="center">
+  <a href="CKA_Security_28.jpg" target="_blank">
+    <img src="assets/CKA_Security_28.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> ## NOTE
+>
+> Time to look where we are going to specify these keys. Remember to consider the `API client certificates` that are used by the API server, while communicating as a client to the `ETCD` and `Kubelet` servers.
+>
+> The location of the certificates are passed into the Kube API servers `executable` or `service configuration file`.
+>
+> - First CA certificate needs to be passed in (every components needs the CA certificate to verify its clients)
+> - We provide the API server certificates under TLS cert option
+> - We then specify the client certificates used by Kube API server to connect to the `ETCD server`, again with the CA file
+> - Finally the Kube API server-client certificates to connect to the `Kubelet`
+
+<div align="center">
+  <a href="CKA_Security_29.jpg" target="_blank">
+    <img src="assets/CKA_Security_29.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> Kubelet server
+
+The Kubelet server is an HTTPS API server that runs on each node, reponsible for managing the node.
+
+That's who the API server talks to for monitoring the node as well as send information regarding `what pods to schedule on this node`.
+
+- You need a certificate key pair for each node
+- They would be `named` after their nodes.
+- Once the certificate created, use them in the `kubelet-config.yaml` file (we must do this for each node in the cluster)
+
+<div align="center">
+  <a href="CKA_Security_30.jpg" target="_blank">
+    <img src="assets/CKA_Security_30.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+Kubelet server also has its set of `Client certificates` to communicate with the Kube API server.
+
+These are used to authenticate in the Kube API server. It needs to know which node is authenticating and give it the right set of permissions : it requires the nodes `to have the right names in the right formats`.
+
+Since the nodes are system components like Kube-Scheduler, Controller-Manager, the format starts :
+
+- with the `system` keyword
+- followed by `node` keyword
+- and then the `node name`
+
+How would the API server give it the right set of permissions ? The nodes must be added to the group `System:Nodes`
+
+<div align="center">
+  <a href="CKA_Security_31.jpg" target="_blank">
+    <img src="assets/CKA_Security_31.jpg" alt="Settings_1" width="700" height="450"/>
+  </a>
+</div>
+
+<br/>
+
+Once the certificates are generated, they go into the kubeconfig files.
