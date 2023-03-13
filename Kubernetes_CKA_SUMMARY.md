@@ -2836,7 +2836,7 @@ Once the certificates are generated, specify them while starting the ETCD server
   </a>
 </div>
 
-<br/>
+&nbsp;
 
 > API server
 
@@ -2875,7 +2875,11 @@ vagrant@kubemaster🥃 ~ openssl genrsa -out apiserver.key 2048
   </a>
 </div>
 
-<br/>
+<div align="center">
+  <i>This screenshot represents a Kube API <b>service</b> if you depoy K8S from scratch, without Kubeadm</i>
+</div>
+
+&nbsp;
 
 > Kubelet server
 
@@ -2916,3 +2920,252 @@ How would the API server give it the right set of permissions ? The nodes must b
 <br/>
 
 Once the certificates are generated, they go into the kubeconfig files.
+
+<br/>
+
+> #### <ins>**TLS certificates details**</ins>
+>
+> ---
+
+<br/>
+
+Whene there are multiple issues related to certificates in the environment, we are asked to perform an Health check of all certificates in the entire cluster.
+
+<div align="center">
+  <a href="CKA_Security_32.jpg" target="_blank">
+    <img src="assets/CKA_Security_32.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+We create a list of certificate files used. There are :
+
+- paths
+- names configured on them
+- alternate names configured on them
+- if any, the organization the certificate account belongs to
+- the issue of the certificate
+- the expiration date
+
+In `Kubeadm`, we can find them in the API server definition file
+
+```bash
+controlplane ~ ➜  cat /etc/kubernetes/manifests/kube-apiserver.yaml
+```
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.13.197.3:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.13.197.3
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt                                           # HERE
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt                                         # HERE
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt                         # HERE
+    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key                          # HERE
+    - --etcd-servers=https://127.0.0.1:2379
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt         # HERE
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key                 # HERE
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt                                     # HERE
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key                              # HERE
+    ...
+```
+
+```bash
+controlplane ~ ➜  cat /etc/kubernetes/manifests/etcd.yaml
+```
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.13.197.3:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.13.197.3:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt                           # HERE
+    - --client-cert-auth=true
+    - --data-dir=/var/lib/etcd
+    - --experimental-initial-corrupt-check=true
+    - --experimental-watch-progress-notify-interval=5s
+    - --initial-advertise-peer-urls=https://192.13.197.3:2380
+    - --initial-cluster=controlplane=https://192.13.197.3:2380
+    - --key-file=/etc/kubernetes/pki/etcd/server.key
+    - --listen-client-urls=https://127.0.0.1:2379,https://192.13.197.3:2379
+    - --listen-metrics-urls=http://127.0.0.1:2381
+    - --listen-peer-urls=https://192.13.197.3:2380
+    - --name=controlplane
+    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt                        # HERE
+    - --peer-client-cert-auth=true                                              # HERE
+    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key                         # HERE
+    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt                    # HERE
+    - --snapshot-count=10000
+    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt                         # HERE
+```
+
+<br/>
+
+To view the details, run the `OpenSSL X509` command and provide the certificate file as input to decode it. We can see below the name and alternate names.
+
+```bash
+controlplane ~ ➜  openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
+```
+
+```yaml
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 5558024164903620405 (0x4d221187c21e0f35)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        Validity
+            Not Before: Mar 14 07:47:32 2023 GMT
+            Not After : Mar 13 07:47:32 2024 GMT
+        Subject: CN = kube-apiserver
+        Subject Public Key Info:
+            ...
+        X509v3 extensions:
+            ...
+
+            X509v3 Subject Alternative Name:
+                DNS:controlplane, DNS:kubernetes, DNS:kubernetes.default, DNS:kubernetes.default.svc, DNS:kubernetes.default.svc.cluster.local, IP Address:10.96.0.1, IP Address:192.13.197.3
+    ...
+```
+
+```bash
+controlplane ~ ➜  openssl x509 -in /etc/kubernetes/pki/etcd/server.crt -text -noout
+```
+
+```yaml
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 5558024164903620405 (0x4d221187c21e0f35)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = etcd-ca
+        Validity
+            Not Before: Mar 14 07:47:33 2023 GMT
+            Not After : Mar 13 07:47:33 2024 GMT
+        Subject: CN = controlplane
+        Subject Public Key Info:
+            ...
+        X509v3 extensions:
+            ...
+
+            X509v3 Subject Alternative Name:
+                DNS:controlplane, DNS:localhost, IP Address:192.13.197.3, IP Address:127.0.0.1, IP Address:0:0:0:0:0:0:0:1
+    ...
+```
+
+<br/>
+
+#### <mark><ins>**How to troubleshoot ?**</ins></mark>
+
+- If API is up
+
+To view logs for errors, run the `Kubectl` command :
+
+<div align="center">
+  <a href="CKA_Security_35.jpg" target="_blank">
+    <img src="assets/CKA_Security_35.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+- If API is down
+
+If API is down and Docker is not installed, check the manifests and `verify if certificate paths are correct` :
+
+```bash
+controlplane ~ ✖ ls /etc/kubernetes/manifests/
+
+etcd.yaml
+kube-apiserver.yaml
+kube-controller-manager.yaml
+kube-scheduler.yaml
+
+controlplane ~ ➜  ls -l /etc/kubernetes/pki/etcd/server* | grep .crt
+-rw-r--r-- 1 root root 1208 Mar 13 07:39 /etc/kubernetes/pki/etcd/server.crt
+```
+
+<br/>
+
+```bash
+controlplane ~ ➜ kubectl get pods -n kube-system
+NAME                                   READY   STATUS    RESTARTS        AGE
+coredns-787d4945fb-6jmtg               1/1     Running   0               54m
+coredns-787d4945fb-v9qss               1/1     Running   0               54m
+etcd-controlplane                      1/1     Running   0               54m
+kube-apiserver-controlplane            1/1     Running   8 (6m38s ago)   54m
+kube-controller-manager-controlplane   1/1     Running   1 (16m ago)     54m
+kube-proxy-c9tgp                       1/1     Running   0               54m
+kube-scheduler-controlplane            1/1     Running   1 (16m ago)     54m
+
+
+# Print the logs for the last 6 hours for a pod
+controlplane ~ ✖ kubectl logs --since=6h etcd-controlplane -n kube-system
+
+...
+
+# crictl is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node.
+controlplane ~ ✖ crictl ps -a | grep etcd
+
+a2b22d14afe04       fce326961ae2d       11 minutes ago       Running             etcd                      0                   8c63e0203a6bd       etcd-controlplane
+```
+
+<br/>
+
+If `Docker` is installed :
+
+<div align="center">
+  <a href="CKA_Security_36.jpg" target="_blank">
+    <img src="assets/CKA_Security_36.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### <ins>**TLS certificates Workflow & API**</ins>
+>
+> ---
+
+<br/>
