@@ -2699,7 +2699,7 @@ vagrant@kubemaster🥃 ~ openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" 
 vagrant@kubemaster🥃 ~ openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
 ```
 
-> Going forward for all other certificates, we will use the CA key pair to sign them. Now the CA has its private key and route certificate file.
+> Going forward for all other certificates, we will use the CA key pair to sign them. Now the CA has its private key and root certificate file.
 
 &nbsp;
 
@@ -3169,3 +3169,219 @@ If `Docker` is installed :
 > ---
 
 <br/>
+
+The following scenario :
+
+- An administrator has set up a CA server and a bunch of certificates for various components
+- He also has his certificate-key pair
+
+<div align="center">
+  <a href="CKA_Security_33.jpg" target="_blank">
+    <img src="assets/CKA_Security_33.jpg" alt="Settings_1" width="600" height="200"/>
+  </a>
+</div>
+
+<br/>
+
+- We have an additional admin user :
+  - she creates her own private key
+  - she generates a CSR and sends to the 1st admin user.
+  - the 1st admin user takes the CSR to the CA server to get it signed, using the CA server's private key and root certificate.
+  - Thereby, the certificate is generated and sent back to the 2nd admin user
+  - She now has avalid pair of certificate and key to access the cluster
+
+<div align="center">
+  <a href="CKA_Security_34.jpg" target="_blank">
+    <img src="assets/CKA_Security_34.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+- As the numbers of users are increasing, we need an automated way to manage the certificates, the signing requests, etc.
+  - Kubernetes has a `built in certificate API`
+  - When 1st admin receives a CSR, instead of logging into the master node and signing the certificate by himself, he creates a Kubernetes API object called `CertificateSigningRequest`. Once the object is created, it is seen by the administrators of the cluster.
+  - The request can be reviewed and approved using `kubectl` commands.
+  - The generated certificate can be then extracted and shared with the user.
+
+<div align="center">
+  <a href="CKA_Security_37.jpg" target="_blank">
+    <img src="assets/CKA_Security_37.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+```bash
+# 2nd admin generates the key
+second_admin ~ ➜ openssl genrsa -out jane.key 2048
+
+jane.key
+
+# 2nd admin generates the CSR then sends it to the 1st admin user
+second_admin ~ ➜ openssl req -new -key jane.key -subj "/CN=jane" -out jane.csr
+
+jane.csr
+
+-----BEGIN CERTIFICATE REQUEST-----
+MIICWDCCAUACAQAwEzERMA8GA1UEAwwIbmV3LXVzZXIwggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQDO0WJW+DXsAJSIrjpNo5vRIBplnzg+6xc9+UVwkKi0
+LfC27t+1eEnON5Muq99NevmMEOnrDUO/thyVqP2w2XNIDRXjYyF40FbmD+5zWyCK
+9w0BAQsFAAOCAQEAS9iS6C1uxTuf5BBYSU7QFQHUzalNxAdYsaORRQNwHZwHqGi4
+hOK4a2zyNyi44OOijyaD6tUW8DSxkr8BLK8Kg3srREtJql5rLZy9LRVrsJghD4gY
+P9NL+aDRSxROVSqBaB2nWeYpM5cJ5TF53lesNSNMLQ2++RMnjDQJ7juPEic8/dhk
+Wr2EUM6UawzykrdHImwTv2mlMY0R+DNtV1Yie+0H9/YElt+FSGjh5L5YUvI1Dqiy
+4l3E/y3qL71WfAcuH3OsVpUUnQISMdQs0qWCsbE56CC5DhPGZIpUbnKUpAwka+8E
+vwQ07jG+hpknxmuFAeXxgUwodALaJ7ju/TDIcw==
+-----END CERTIFICATE REQUEST-----
+```
+
+```bash
+# The 1st admin will create the CSR object, using a manifest file
+first_admin ~ ➜ vi jane-csr.yaml
+```
+
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  name: jane
+spec:
+  # You specify the groups where the user should be part of
+  groups:
+    - system:authenticated
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  # certificate encoded using the base64 command
+  # cat jane.csr | base64 | tr -d "\n"
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1dEQ0NBVUFDQVFBd0V6RVJNQThHQTFVRUF3d0libVYzTFhWelpYSXdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRE8wV0pXK0RYc0FKU0lyanBObzV2UklCcGxuemcrNnhjOStVVndrS2kwCkxmQzI3dCsxZUVuT041TXVxOTlOZXZtTUVPbnJ
+```
+
+```bash
+# Once the object is created we can see it with kubectl commands
+second_admin ~ ➜ kubectl get csr
+
+NAME AGE REQUESTOR CONDITION
+jane 10m admin@example.com Pending
+
+# Approve the certificate
+second_admin ~ ➜ kubectl certificate approve jane
+
+jane approved!
+```
+
+Kubernetes signs the certificate using the CA key pairs and generates a certificate for the user. This certificate can then be extracted and shared with the user.
+
+```bash
+# View the certificate
+second_admin ~ ➜ kubectl get csr jane -o yaml
+```
+
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  creationTimestamp: 2019-02-13T16:36:43Z
+  name: new-user
+spec:
+  groups:
+   - system:masters
+   - system:authenticated
+  usages:
+   - digital signature
+   - key encipherment
+   - server auth
+   username: kubernetes-admin
+  status:
+    certificate:
+      LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDakNDQWZLZ0F3SUJBZ0lVRmwy
+Q2wxYXoxaWl5M3JNVisreFRYQUowU3dnd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0ZURVRN
+QkVHQTFVRUF4TUthM1ZpWlhKdVpYUmxjekFlRncweE9UQXlNVE14TmpNeU1EQmFGd1dn
+Y0ZFeDl2ajNuSXY3eFdDS1NIRm5sU041c0t5Z0VxUkwzTFM5V29GelhHZDdWCmlEZ2FO
+MVVRMFBXTVhjN09FVnVjSWc1Yk4weEVHTkVwRU5tdUlBNlZWeHVjS1h6aG9ldDY0MEd1
+MGU0YXFKWVIKWmVMbjBvRTFCY3dod2xic0I1ND0KLS0tLS1FTkQgQ0VSVElGSUNBVEUt
+LS0tLQo=
+    conditions:
+    - lastUpdateTime: 2019-02-13T16:37:21Z
+      message: This CSR was approved by kubectl certificate approve.
+      reason: KubectlApprove
+      type: Approved
+```
+
+<br/>
+
+#### <mark><ins>**Who does all of this for us ?**</ins></mark>
+
+Let's look ath the Kubernetes `control plane` components :
+
+- Kube-API server
+- Scheduler
+- Controller Manager
+- ETCD server
+- etc.
+
+Which of these components are responsible for all the certificate related operations ?
+
+<div align="center">
+  <a href="CKA_Security_38.jpg" target="_blank">
+    <img src="assets/CKA_Security_38.jpg" alt="Settings_1" width="300" height="200"/>
+  </a>
+</div>
+
+<br/>
+
+It is the `Controller Manager` that carries out all of these operations, especially these controllers inside called :
+
+- `CSR-Approving`
+- `CSR-Signing`
+- Etc.
+
+<div align="center">
+  <a href="CKA_Security_39.jpg" target="_blank">
+    <img src="assets/CKA_Security_39.jpg" alt="Settings_1" width="300" height="150"/>
+  </a>
+</div>
+
+<br/>
+
+If anyone has to sign certificates, they need the CA servers root certificate and private key. The Controller Manager service configuration has 2 options where we can specify it
+
+```bash
+first_admin ~ ➜ cat /etc/kubernetes/manifests/kube-controller-manager.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    component: kube-controller-manager
+    tier: control-plane
+  name: kube-controller-manager
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-controller-manager
+    - --allocate-node-cidrs=true
+    - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --bind-address=127.0.0.1
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --cluster-cidr=10.244.0.0/16
+    - --cluster-name=kubernetes
+    - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt                        # HERE
+    - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key                         # HERE
+    - --controllers=*,bootstrapsigner,tokencleaner
+    - --kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --leader-elect=true
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --root-ca-file=/etc/kubernetes/pki/ca.crt
+    - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --use-service-account-credentials=true
+    ...
+```
