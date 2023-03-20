@@ -2921,7 +2921,7 @@ How would the API server give it the right set of permissions ? The nodes must b
 
 Once the certificates are generated, they go into the kubeconfig files.
 
-<br/>
+&nbsp;
 
 > #### <ins>**TLS certificates details**</ins>
 >
@@ -3210,6 +3210,12 @@ The following scenario :
   </a>
 </div>
 
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
 <br/>
 
 ```bash
@@ -3385,3 +3391,138 @@ spec:
     - --use-service-account-credentials=true
     ...
 ```
+
+&nbsp;
+
+> #### <ins>**Kubeconfig**</ins>
+>
+> ---
+
+<br/>
+
+With what we saw with certificates, we can pass them, using the REST API for querying information on our cluster.
+
+```bash
+first_admin ~ ➜ curl https://my-kube-playground:6443/api/v1/pods \
+--key admin.key
+--cert admin.crt
+--cacert ca.crt
+```
+
+```json
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {
+    "selfLink": "/api/v1/pods"
+  },
+  "items": []
+}
+```
+
+```bash
+first_admin ~ ➜ kubectl get pods
+--client-key admin.key
+--client-certificate admin.crt
+--certificate-authority ca.crt
+--server my-kube-playground:6443
+
+No resources found.
+```
+
+Typing every time these parameters can be tedious : we can pass the arguments into a config file.
+
+```bash
+# File name : config
+
+--client-key admin.key
+--client-certificate admin.crt
+--certificate-authority ca.crt
+--server my-kube-playground:6443
+```
+
+```bash
+first_admin ~ ➜ kubectl get pods
+--kubeconfig config
+
+No resources found.
+```
+
+We can also create a `Kubeconfig` file.
+
+```yaml
+apiVersion: v1
+kind: Config
+
+# We can specify a context by default
+current-context: dev-user@google
+
+# Clusters : the various K8S clusters that you need access to
+clusters:
+  - name: my-kube-playground
+    cluster:
+      certificate-authority: ca.crt
+      server: https://my-kube-playground:6443
+
+# Users : accounts with which you have access to these clusters. These users can have different privileges, based on the cluster.
+users:
+  - name: my-kube-admin
+    user:
+      client-certificate: admin.crt
+      client-key: admin.key
+
+# Contexts : define which account will be used to access which cluster
+contexts:
+  - name: my-kube-admin@my-kube-playground
+    context:
+      cluster: my-kube-playground
+      user: my-kube-admin
+```
+
+<div align="center">
+  <a href="CKA_Security_40.jpg" target="_blank">
+    <img src="assets/CKA_Security_40.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>With contexts section we can define which user can access which cluster. For example, only admin can access Production cluster.</i>
+</div>
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To view Kubeconfig. If we don't specify which file to use, K8S will look at the `.kube` folder in the user's home directory.
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config view
+```
+
+- To view Kubeconfig while specifying the file
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config view --kubeconfig=my-custom-config
+```
+
+- To change the current context
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config use-context prod-user@production
+```
+
+&nbsp;
+
+Each clusters can be configured with multiple namespaces within it. With Kubeconfig file, we have a `namespace` section in `contexts` section.
+
+<div align="center">
+  <a href="CKA_Security_41.jpg" target="_blank">
+    <img src="assets/CKA_Security_41.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
