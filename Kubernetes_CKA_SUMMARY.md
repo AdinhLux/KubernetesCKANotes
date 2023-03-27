@@ -3525,4 +3525,179 @@ Each clusters can be configured with multiple namespaces within it. With Kubecon
   </a>
 </div>
 
+&nbsp;
+
+> #### <ins>**API Groups**</ins>
+>
+> ---
+
 <br/>
+
+Kubernetes has multiple API endpoints we can interact through `kubectl` or `REST` :
+
+- `/metrics`
+- `/healthz`
+- `/version` : for viewing the cluster version
+- `/api`
+- `/apis`
+- `/logs` : for integrating with 3rd party loggin applications
+
+<br/>
+
+We will focus on the API responsible for the cluster functionnalities :
+
+- the core group `/api` (where all core functionality exists)
+- the named group `/apis`
+
+<div align="center">
+  <a href="CKA_Security_42.jpg" target="_blank">
+    <img src="assets/CKA_Security_42.jpg" alt="Settings_1" width="300" height="300"/>
+  </a>
+  <a href="CKA_Security_43.jpg" target="_blank">
+    <img src="assets/CKA_Security_43.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### <ins>**Authorization**</ins>
+>
+> ---
+
+`Authorization` defines what users can do with the cluster
+
+<div align="center">
+  <a href="CKA_Security_44.jpg" target="_blank">
+    <img src="assets/CKA_Security_44.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+6 types of autorizations :
+
+- **AlwaysAllow**
+- **Node**
+- **ABAC** (Attribute Based Authorization) : You create a file for each user
+- **RBAC** (Role Based Authorization) : Tou create a file where you associate multiple users
+- **Webhook** : If we want to outsource authorization mechanisms (using `Open Policy Agent`)
+- **AlwaysDeny**
+
+When having set multiple modules, the request is first handled by the 1st module. If denied, it is forwarded to the next module, until one grants the user permission to get access to the requested object.
+
+<div align="center">
+  <a href="CKA_Security_45.jpg" target="_blank">
+    <img src="assets/CKA_Security_45.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <ins>RBAC</ins>
+
+- We create a role definition file
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: default
+rules:
+  # For Core groups, you can leave the apiGroups as blank
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
+      - create
+      - delete
+```
+
+- We link it to the user by creating another object called `role binding`
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-user-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: dev-user
+```
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To view the created roles
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get roles
+
+NAME        CREATED AT
+developer   2023-03-27T13:35:48Z
+```
+
+- To view the binding roles
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get rolebindings
+
+NAME               ROLE             AGE
+dev-user-binding   Role/developer   6m17s
+```
+
+- To view details about the role / role binding
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe role developer
+
+Name:         developer
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  pods       []                 []              [list create delete]
+
+
+vagrant@kubemaster🥃 ~ kubectl describe rolebinding devuser-developer-binding
+
+Name:         devuser-developer-binding
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  developer
+Subjects:
+  Kind  Name      Namespace
+  ----  ----      ---------
+  User  dev-user
+```
+
+- To check access for us / another user
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl auth can-i create deployments
+vagrant@kubemaster🥃 ~ kubectl auth can-i delete nodes
+yes
+
+vagrant@kubemaster🥃 ~ kubectl auth can-i create deployments --as dev-user
+vagrant@kubemaster🥃 ~ kubectl auth can-i create nodes --as dev-user
+no
+
+# Check if dev-user can create pods in 'test' namepsace
+vagrant@kubemaster🥃 ~ kubectl auth can-i create nodes --as dev-user --namespace test
+```
