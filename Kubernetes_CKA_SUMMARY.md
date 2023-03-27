@@ -3701,3 +3701,65 @@ no
 # Check if dev-user can create pods in 'test' namepsace
 vagrant@kubemaster🥃 ~ kubectl auth can-i create nodes --as dev-user --namespace test
 ```
+
+&nbsp;
+
+> #### <ins>**Cluster Roles and Role Bindings**</ins>
+>
+> ---
+
+Roles and Role Bindings are namespaced, meaning they're created within namespaces.
+
+<ins>**For Reminder :**</ins>
+
+Namespaces are used to group or isolate resources like pods, deployments, and services.
+
+**Nodes** CAN NOT be associated to any particular namespaces : they are cluster-wide or cluster-scoped resources.
+
+<br/>
+
+So the resources are categorized as either `namespaced` or `cluster-scoped`.
+
+<div align="center">
+  <a href="CKA_Security_46.jpg" target="_blank">
+    <img src="assets/CKA_Security_46.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+For cluster-scoped resources, we have `Cluster Roles` and `Cluster Role Bindings`
+
+```yaml
+# kubectl get clusterrole  node-admin -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-admin
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - delete
+```
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: michelle-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: michelle
+```

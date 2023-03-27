@@ -1,0 +1,314 @@
+Q:
+--
+How many ClusterRoles do you see defined in the cluster ?
+
+
+A:
+--
+Run the command: kubectl get clusterroles --no-headers | wc -l or kubectl get clusterroles --no-headers -o json | jq '.items | length'
+
+controlplane ~ ✖ kubectl get clusterroles --no-headers
+cluster-admin                                                          2023-03-27T15:12:18Z
+system:discovery                                                       2023-03-27T15:12:18Z
+system:monitori
+...
+
+controlplane ~ ➜  kubectl get clusterroles --no-headers | wc -l
+69
+
+controlplane ~ ➜  kubectl get clusterroles --no-headers -o json | jq '.items | length'
+69
+
+
+===============================================================================================================================
+
+Q:
+--
+How many ClusterRoleBindings exist on the cluster ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl get clusterrolebindings --no-headers | wc -l
+54
+
+controlplane ~ ➜  kubectl get clusterrolebindings --no-headers -o json | jq '.items | length'
+54
+
+
+===============================================================================================================================
+
+Q:
+--
+What namespace is the cluster-admin clusterrole part of ?
+
+
+A:
+--
+Cluster Roles are cluster wide and not part of any namespace
+
+controlplane ~ ➜  kubectl describe clusterrole cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  *.*        []                 []              [*]
+             [*]                []              [*]
+
+
+===============================================================================================================================
+
+Q:
+--
+What user/groups are the cluster-admin role bound to ?
+
+The ClusterRoleBinding for the role is with the same name.
+
+
+A:
+--
+system:masters
+
+controlplane ~ ➜  kubectl describe clusterrole cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  *.*        []                 []              [*]
+             [*]                []              [*]
+
+controlplane ~ ➜  kubectl describe clusterrolebinding cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+Role:
+  Kind:  ClusterRole
+  Name:  cluster-admin
+Subjects:
+  Kind   Name            Namespace
+  ----   ----            ---------
+  Group  system:masters  
+  
+
+===============================================================================================================================
+
+Q:
+--
+What level of permission does the cluster-admin role grant ?
+
+Inspect the cluster-admin role's privileges.
+
+
+A:
+--
+Perform any action on any resource in the cluster
+
+controlplane ~ ➜  kubectl describe clusterrole cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  *.*        []                 []              [*]
+             [*]                []              [*]
+
+
+===============================================================================================================================
+
+Q:
+--
+A new user michelle joined the team. 
+She will be focusing on the nodes in the cluster. 
+Create the required ClusterRoles and ClusterRoleBindings so she gets access to the nodes.
+
+
+A:
+--
+Use the command kubectl create to create a clusterrole and clusterrolebinding for user michelle to grant access to the nodes.
+After that test the access using the command kubectl auth can-i list nodes --as michelle.
+
+
+controlplane ~ ➜  kubectl create clusterrole node-admin --verb=get,watch,list,create,delete --resource=nodes
+clusterrole.rbac.authorization.k8s.io/node-admin created
+
+controlplane ~ ➜  kubectl describe clusterrole node-admin 
+Name:         node-admin
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  nodes      []                 []              [get watch list create delete]
+  
+  
+
+controlplane ~ ➜  kubectl create clusterrolebinding michelle-binding --clusterrole=node-admin --user=michelle
+clusterrolebinding.rbac.authorization.k8s.io/michelle-binding created
+
+controlplane ~ ➜  kubectl describe clusterrolebinding michelle-binding
+Name:         michelle-binding
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  ClusterRole
+  Name:  node-admin
+Subjects:
+  Kind  Name      Namespace
+  ----  ----      ---------
+  User  michelle  
+  
+  
+
+OR
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: node-admin
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+```
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: michelle-binding
+subjects:
+- kind: User
+  name: michelle
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: node-admin
+  apiGroup: rbac.authorization.k8s.io
+```
+
+controlplane ~ ➜  kubectl auth can-i list nodes --as michelle
+Warning: resource 'nodes' is not namespace scoped
+
+yes
+
+
+===============================================================================================================================
+
+Q:
+--
+michelle's responsibilities are growing and now she will be responsible for storage as well. 
+Create the required ClusterRoles and ClusterRoleBindings to allow her access to Storage.
+
+Get the API groups and resource names from command kubectl api-resources. Use the given spec:
+
+ClusterRole: storage-admin
+Resource: persistentvolumes
+Resource: storageclasses
+ClusterRoleBinding: michelle-storage-admin
+ClusterRoleBinding Subject: michelle
+ClusterRoleBinding Role: storage-admin
+
+
+A:
+--
+Use the command kubectl create to create a new ClusterRole and ClusterRoleBinding.
+
+Assign it correct resources and verbs.
+
+After that test the access using the command kubectl auth can-i list storageclasses --as michelle.
+
+
+
+controlplane ~ ➜  kubectl api-resources
+NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+bindings                                       v1                                     true         Binding
+componentstatuses                 cs           v1                                     false        ComponentStatus
+configmaps                        cm           v1                                     true         ConfigMap
+endpoints                         ep           v1                                     true         Endpoints
+events                            ev           v1                                     true         Event
+limitranges                       limits       v1                                     true         LimitRange
+namespaces                        ns           v1                                     false        Namespace
+...
+
+
+
+controlplane ~ ➜  kubectl create clusterrole storage-admin --verb=get,watch,list,create,delete --resource=persistentvolumes,storageclasses
+clusterrole.rbac.authorization.k8s.io/storage-admin created
+
+controlplane ~ ➜  kubectl describe clusterrole storage-admin 
+Name:         storage-admin
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources                      Non-Resource URLs  Resource Names  Verbs
+  ---------                      -----------------  --------------  -----
+  persistentvolumes              []                 []              [get watch list create delete]
+  storageclasses.storage.k8s.io  []                 []              [get watch list create delete]
+  
+  
+
+controlplane ~ ➜  kubectl create clusterrolebinding michelle-storage-admin --clusterrole=storage-admin --user=michelle
+clusterrolebinding.rbac.authorization.k8s.io/michelle-storage-admin created
+
+controlplane ~ ➜  kubectl describe clusterrolebinding michelle-storage-admin 
+Name:         michelle-storage-admin
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  ClusterRole
+  Name:  storage-admin
+Subjects:
+  Kind  Name      Namespace
+  ----  ----      ---------
+  User  michelle
+  
+  
+
+OR
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: storage-admin
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+```
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: michelle-storage-admin
+subjects:
+- kind: User
+  name: michelle
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: storage-admin
+  apiGroup: rbac.authorization.k8s.io
+```
+
+controlplane ~ ➜  kubectl auth can-i list storageclasses --as michelle
+Warning: resource 'storageclasses' is not namespace scoped in group 'storage.k8s.io'
+
+yes
+
+controlplane ~ ➜  kubectl get storageclasses --as michelle
+NAME                   PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+local-path (default)   rancher.io/local-path   Delete          WaitForFirstConsumer   false                  35m
+
+
+===============================================================================================================================
