@@ -3763,3 +3763,93 @@ subjects:
     kind: User
     name: michelle
 ```
+
+&nbsp;
+
+> #### <ins>**Service Accounts**</ins>
+>
+> ---
+
+This conccept is linked to other concepts such as authentication, authorization, RBAC, etc.
+
+There are 2 types of accounts :
+
+- **User**
+
+  - an Admin performing administrative tasks
+  - a Developer deploying applications
+
+<br/>
+
+- **Service**
+
+  - a monitoring application like `Prometheus` pulling the K8S API for performance metrics
+  - an automated build tool like `Jenkins` for deploying applications on the cluster
+
+<br/>
+
+> When a Service account is created, a token is automatically created and stored into a secret object. This `token` is what must be used by the external application while authenticating to the K8S API.
+
+<br/>
+
+> - Each namespace has its own default service account. Whenever a pod is created, the default SA and its token are automatically mounted to that pod as a `volume mount`.
+> - The secret token is mounted at `var/run/secrets/kubernetes.io/serviceaccount` inside the pod
+> - The default SA is very restricted : it only has permission to run basic K8S API queries
+> - We can not edit the SA of an existing pod : we must delete and recreate the pod through the deployment.
+
+<br/>
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard-sa
+  namespace: default
+```
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To create accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl create serviceaccount dashboard-sa
+```
+
+- To list accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get serviceaccounts
+
+NAME           SECRETS   AGE
+default        0         23m
+dev            0         17m
+dashboard-sa   0         104s
+```
+
+- To detail accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe serviceaccount dashboard-sa
+
+Name:                dashboard-sa
+Namespace:           default
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  <none>
+Mountable secrets:   <none>
+Tokens:              <none>
+Events:              <none>
+```
+
+- To display a token through the secret object
+
+```bash
+# We can use it as a bearer token when sending REST requests
+vagrant@kubemaster🥃 ~ kubectl describe secret dashboard-sa-token-kbbdm
+```
