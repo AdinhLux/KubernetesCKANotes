@@ -1,0 +1,236 @@
+Q:
+--
+What secret type must we choose for docker registry ?
+
+
+A:
+--
+Run the command kubectl create secret --help and identify it.
+
+
+root@controlplane ~ ➜  kubectl create secret --help
+Create a secret using specified subcommand.
+
+Available Commands:
+  docker-registry   Create a secret for use with a Docker registry
+  generic           Create a secret from a local file, directory, or literal value
+  tls               Create a TLS secret
+
+Usage:
+  kubectl create secret [flags] [options]
+
+Use "kubectl <command> --help" for more information about a given command.
+Use "kubectl options" for a list of global command-line options (applies to all commands).
+
+
+===============================================================================================================================
+
+Q:
+--
+We have an application running on our cluster. Let us explore it first. What image is the application using ?
+
+
+A:
+--
+Use the kubectl describe command to see more details (image and container name, labels etc).
+
+
+root@controlplane ~ ➜  kubectl get pods
+NAME                 READY   STATUS    RESTARTS   AGE
+web-fd5cb786-mc2pt   1/1     Running   0          114s
+web-fd5cb786-wg4wp   1/1     Running   0          114s
+
+root@controlplane ~ ➜  kubectl get deployments
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+web    2/2     2            2           2m13s
+
+root@controlplane ~ ➜  kubectl describe deployments web
+Name:                   web
+Namespace:              default
+CreationTimestamp:      Tue, 28 Mar 2023 12:57:35 +0000
+Labels:                 app=web
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app=web
+Replicas:               2 desired | 2 updated | 2 total | 2 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=web
+  Containers:
+   nginx:
+    Image:        nginx:alpine
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   web-fd5cb786 (2/2 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  2m25s  deployment-controller  Scaled up replica set web-fd5cb786 to 2
+
+
+===============================================================================================================================
+
+Q:
+--
+We decided to use a modified version of the application from an internal private registry. 
+Update the image of the deployment to use a new image from myprivateregistry.com:5000
+
+The registry is located at myprivateregistry.com:5000. 
+Don't worry about the credentials for now. We will configure them in the upcoming steps.
+
+
+A:
+--
+Use the kubectl edit deployment command to edit the image name to myprivateregistry.com:5000/nginx:alpine.
+
+$ kubectl edit deployment web
+
+
+```
+Name:                   web
+Namespace:              default
+CreationTimestamp:      Tue, 28 Mar 2023 12:57:35 +0000
+Labels:                 app=web
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app=web
+Replicas:               2 desired | 2 updated | 2 total | 2 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=web
+  Containers:
+   nginx:
+    Image:        myprivateregistry.com:5000/nginx:alpine
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Are the new PODs created with the new images successfully running ?
+
+
+A:
+--
+Run the command: kubectl get pods command and check the status of the pods.
+
+root@controlplane ~ ➜  kubectl get pods
+NAME                  READY   STATUS         RESTARTS   AGE
+web-87bb989dc-4c65s   0/1     ErrImagePull   0          60s
+web-fd5cb786-mc2pt    1/1     Running        0          6m17s
+web-fd5cb786-wg4wp    1/1     Running        0          6m17s
+
+
+===============================================================================================================================
+
+Q:
+--
+Create a secret object with the credentials required to access the registry.
+
+Name: private-reg-cred
+Username: dock_user
+Password: dock_password
+Server: myprivateregistry.com:5000
+Email: dock_user@myprivateregistry.com
+
+
+Secret: private-reg-cred
+Secret Type: docker-registry
+Secret Data
+
+
+A:
+--
+Run the command: 
+kubectl create secret docker-registry private-reg-cred --docker-username=dock_user --docker-password=dock_password --docker-server=myprivateregistry.com:5000 --docker-email=dock_user@myprivateregistry.com
+
+
+root@controlplane ~ ➜  kubectl create secret docker-registry private-reg-cred --docker-username=dock_user --docker-password=dock_password --docker-server=myprivateregistry.com:5000 --docker-email=dock_user@myprivateregistry.com
+secret/private-reg-cred created
+
+
+root@controlplane ~ ➜  kubectl get secret
+NAME               TYPE                             DATA   AGE
+private-reg-cred   kubernetes.io/dockerconfigjson   1      21s
+
+root@controlplane ~ ➜  kubectl get secret private-reg-cred -o yaml
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJteXByaXZhdGVyZWdpc3RyeS5jb206NTAwMCI6eyJ1c2VybmFtZSI6ImRvY2tfdXNlciIsInBhc3N3b3JkIjoiZG9ja19wYXNzd29yZCIsImVtYWlsIjoiZG9ja191c2VyQG15cHJpdmF0ZXJlZ2lzdHJ5LmNvbSIsImF1dGgiOiJaRzlqYTE5MWMyVnlPbVJ2WTJ0ZmNHRnpjM2R2Y21RPSJ9fX0=
+kind: Secret
+metadata:
+  creationTimestamp: "2023-03-28T13:05:00Z"
+  name: private-reg-cred
+  namespace: default
+  resourceVersion: "3329"
+  uid: e337a77d-1ff4-455f-b9f4-3134e17ba071
+type: kubernetes.io/dockerconfigjson
+
+
+===============================================================================================================================
+
+Q:
+--
+Configure the deployment to use credentials from the new secret to pull images from the private registry
+
+
+A:
+--
+Edit deployment using kubectl edit deploy web command and add imagePullSecrets section. Use private-reg-cred.
+
+
+root@controlplane ~ ➜  kubectl edit deploy web
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: web
+  name: web
+  namespace: default
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: web
+    spec:
+      containers:
+      - image: myprivateregistry.com:5000/nginx:alpine
+        imagePullPolicy: IfNotPresent
+        name: nginx
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      imagePullSecrets:
+      - name: private-reg-cred
+```
+
+Check the status of PODs. Wait for them to be running. You have now successfully configured a Deployment to pull images from the private registry.
+
+
+===============================================================================================================================

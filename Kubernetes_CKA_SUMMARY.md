@@ -3853,3 +3853,42 @@ Events:              <none>
 # We can use it as a bearer token when sending REST requests
 vagrant@kubemaster🥃 ~ kubectl describe secret dashboard-sa-token-kbbdm
 ```
+
+&nbsp;
+
+> #### <ins>**Image Security**</ins>
+>
+> ---
+
+To use an image from a private registry :
+
+- we replace the image name with the `full path` of private repository
+- we create a `secret object` with the credentials for authentication
+
+```bash
+# Docker way
+vagrant@kubemaster🥃 ~ docker login private-registry.io
+vagrant@kubemaster🥃 ~ docker run private-registry.io/apps/internal-app
+```
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl create secret docker-registry regcred \
+--docker-server=private-registry.io \
+--docker-username=registry-user \
+--docker-password=registry-password \
+--docker-email=registry-user@org.com
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+spec:
+  containers:
+    - name: nginx
+      image: private-registry.io/apps/internal-app
+  imagePullSecrets:
+    # The secret object we created before
+    - name: regcred
+```
