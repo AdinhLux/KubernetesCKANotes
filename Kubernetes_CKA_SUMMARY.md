@@ -3892,3 +3892,71 @@ spec:
     # The secret object we created before
     - name: regcred
 ```
+
+&nbsp;
+
+> #### <ins>**Security Context**</ins>
+>
+> ---
+
+When running a Docker container, we have the option to define a set of security standards, such as :
+
+- the ID of the user used to run the container
+- the Linux capabilities tha can be added or removed from the container
+- etc.
+
+<div align="center">
+  <a href="CKA_Security_47.jpg" target="_blank">
+    <img src="assets/CKA_Security_47.jpg" alt="Settings_1" width="400" height="300"/>
+  </a>
+  <a href="CKA_Security_48.jpg" target="_blank">
+    <img src="assets/CKA_Security_48.jpg" alt="Settings_1" width="400" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>In this picture, we have a root user from the conainer <b>who is different from the root user's host</b>. As you can see some privileges are not available. Here we're adding the <b>MAC_ADMIN</b> privilege to the root user's container.</i>
+</div>
+
+<br/>
+
+In Kubernetes, you may choose to configure the security settings at the **Container** or **POD** level
+
+> Setting at **Container** level will override the **POD** level
+
+```yaml
+# Configuring at POD level
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-pod
+spec:
+  securityContext:
+    # Setting User to use (with ID 1000)
+    runAsUser: 1000
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+```
+
+```yaml
+# Configuring at Container level
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-pod
+spec:
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+      securityContext:
+        # Setting User to use (with ID 1000)
+        runAsUser: 1000
+        # Adding Linux capabilities (only supported at container level)
+        capabilities:
+          add: ["MAC_ADMIN"]
+```

@@ -1,0 +1,206 @@
+Q:
+--
+What is the user used to execute the sleep process within the ubuntu-sleeper pod ?
+
+In the current(default) namespace.
+
+
+A:
+--
+Run the command: kubectl exec ubuntu-sleeper -- whoami and check the user that is running the container.
+
+
+controlplane ~ ➜  kubectl exec ubuntu-sleeper -- whoami
+root
+
+
+===============================================================================================================================
+
+Q:
+--
+Edit the pod ubuntu-sleeper to run the sleep process with user ID 1010.
+
+Note: Only make the necessary changes. Do not modify the name or image of the pod.
+
+
+Pod Name: ubuntu-sleeper
+Image Name: ubuntu
+SecurityContext: User 1010
+
+
+A:
+--
+Set a security context to run as user 1010.
+
+
+
+controlplane ~ ✖ kubectl delete po ubuntu-sleeper 
+pod "ubuntu-sleeper" deleted
+
+
+controlplane ~ ➜  vi sample.yaml 
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper
+  namespace: default
+spec:
+  securityContext:
+    runAsUser: 1010
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu
+    name: ubuntu-sleeper
+```	
+
+controlplane ~ ➜  kubectl apply -f sample.yaml 
+pod/ubuntu-sleeper created
+
+
+===============================================================================================================================
+
+Q:
+--
+A Pod definition file named multi-pod.yaml is given. With what user are the processes in the web container started?
+
+The pod is created with multiple containers and security contexts defined at the Pod and Container level.
+
+
+A:
+--
+The User ID defined in the securityContext of the container overrides the User ID in the POD.
+
+
+1002
+
+
+controlplane ~ ➜  cat multi-pod.yaml 
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multi-pod
+spec:
+  securityContext:
+    runAsUser: 1001
+  containers:
+  -  image: ubuntu
+     name: web
+     command: ["sleep", "5000"]
+     securityContext:
+      runAsUser: 1002
+
+  -  image: ubuntu
+     name: sidecar
+     command: ["sleep", "5000"]
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+With what user are the processes in the sidecar container started?
+
+The pod is created with multiple containers and security contexts defined at the Pod and Container level.
+
+
+A:
+--
+The User ID defined in the securityContext of the POD is carried over to all the containers in the Pod.
+
+1001
+
+
+===============================================================================================================================
+
+Q:
+--
+Update pod ubuntu-sleeper to run as Root user and with the SYS_TIME capability.
+
+Note: Only make the necessary changes. Do not modify the name of the pod.
+
+
+Pod Name: ubuntu-sleeper
+Image Name: ubuntu
+SecurityContext: Capability SYS_TIME
+
+
+A:
+--
+Add SYS_TIME capability to the container's Security Context.
+
+
+root@controlplane ~ ➜  kubectl get pods ubuntu-sleeper -o yaml > ubuntu-sleeper.yaml
+root@controlplane ~ ➜  vi ubuntu-sleeper.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper
+  namespace: default
+spec:
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu
+    name: ubuntu-sleeper
+    securityContext:
+      capabilities:
+        add: ["SYS_TIME"]
+```
+
+controlplane ~ ➜ kubectl replace --force -f ubuntu-sleeper.yaml
+pod "ubuntu-sleeper" deleted
+pod/ubuntu-sleeper replaced
+
+
+===============================================================================================================================
+
+Q:
+--
+Now update the pod to also make use of the NET_ADMIN capability.
+
+Note: Only make the necessary changes. Do not modify the name of the pod.
+
+
+Pod Name: ubuntu-sleeper
+Image Name: ubuntu
+SecurityContext: Capability SYS_TIME
+SecurityContext: Capability NET_ADMIN
+
+
+A:
+--
+controlplane ~ ➜  vi ubuntu-sleeper.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper
+  namespace: default
+spec:
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu
+    name: ubuntu-sleeper
+    securityContext:
+      capabilities:
+        add: ["SYS_TIME","NET_ADMIN"]
+```
+
+controlplane ~ ➜ kubectl replace --force -f ubuntu-sleeper.yaml
+pod "ubuntu-sleeper" deleted
+pod/ubuntu-sleeper replaced
+
+
+===============================================================================================================================
