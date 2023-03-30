@@ -3915,7 +3915,7 @@ When running a Docker container, we have the option to define a set of security 
 </div>
 
 <div align="center">
-  <i>In this picture, we have a root user from the conainer <b>who is different from the root user's host</b>. As you can see some privileges are not available. Here we're adding the <b>MAC_ADMIN</b> privilege to the root user's container.</i>
+  <i>In this picture, we have a root user from the container <b>who is different from the root user's host</b>. As you can see some privileges are not available. Here we're adding the <b>MAC_ADMIN</b> privilege to the root user's container.</i>
 </div>
 
 <br/>
@@ -3959,4 +3959,224 @@ spec:
         # Adding Linux capabilities (only supported at container level)
         capabilities:
           add: ["MAC_ADMIN"]
+```
+
+&nbsp;
+
+> #### <ins>**Network Policies**</ins>
+>
+> ---
+
+<br/>
+
+2 Types of traffic :
+
+- Ingress (incoming traffic from the users)
+- Egress (outgoing request to the API server)
+
+<div align="center">
+  <a href="CKA_Security_49.jpg" target="_blank">
+    <img src="assets/CKA_Security_49.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_50.jpg" target="_blank">
+    <img src="assets/CKA_Security_50.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>By looking at the right picture, <b>from the API server's perspective</b>, it has an Ingress traffic from the Web application to the port 5000 and it has an Egress traffic to port 3306</i>
+</div>
+
+<br/>
+
+By gathering all the perspectives, we define our list of rules required to get the traffic working.
+
+<div align="center">
+  <a href="CKA_Security_51.jpg" target="_blank">
+    <img src="assets/CKA_Security_51.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+Let's look at network security in K8S. We have a set of nodes hosting a set of pods and services :
+
+- Each node, pod and service has an IP address
+- The PODs should be able to communicate with each other without having to configure any additional settings like routes.
+
+<br/>
+
+> K8S is configured by default with a rulle `All Allow` to allow traffic from any pod to any other pod or services within the cluster
+
+<div align="center">
+  <a href="CKA_Security_52.jpg" target="_blank">
+    <img src="assets/CKA_Security_52.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+In the previous example, we can say that our 3 POD applications can communicate with each other : **it can not be allowed**.
+
+This is where we will use `Network Policies`. Here, on DB POD, we only allow traffic from API POD to the port 3306
+
+<div align="center">
+  <a href="CKA_Security_53.jpg" target="_blank">
+    <img src="assets/CKA_Security_53.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+    <a href="CKA_Security_53.jpg" target="_blank">
+    <img src="assets/CKA_Security_54.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark><ins>**How to link the Policy to the Pod?**</ins></mark>
+
+Using `labels` and `selectors` :
+
+- We label the POD
+- We use the same label on the `podSelector` field in the network policy file
+- Then we build our rule
+
+```yaml
+# In POD Definition file (payroll)
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    # POD label to be defined in Network Policy file
+    name: payroll
+  name: payroll
+  namespace: default
+spec:
+  containers:
+    - env:
+        - name: APP_NAME
+          value: Payroll Application
+        - name: BG_COLOR
+          value: blue
+      image: kodekloud/webapp-conntest
+      imagePullPolicy: Always
+      name: payroll
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: kube-api-access-qhvtc
+          readOnly: true
+```
+
+```yaml
+# In POD Definition file (internal)
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    # POD label to be defined in Network Policy file
+    name: internal
+  name: internal
+  namespace: default
+spec:
+  containers:
+    - env:
+        - name: APP_NAME
+          value: Internal Facing Application
+        - name: BG_COLOR
+          value: blue
+      image: kodekloud/webapp-conntest
+      imagePullPolicy: Always
+      name: internal
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: kube-api-access-bkhx2
+          readOnly: true
+```
+
+```yaml
+# In Network Policy Definition file
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payroll-policy
+  namespace: default
+spec:
+  # POD  as reference : payroll
+  podSelector:
+    matchLabels:
+      name: payroll
+  # 'payroll' POD allows incoming traffic from 'internal' POD to communicate to port 8080
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              name: internal
+      ports:
+        - port: 8080
+          protocol: TCP
+  policyTypes:
+    - Ingress
+```
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_55.jpg" target="_blank">
+    <img src="assets/CKA_Security_55.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We defined <b>3 Ingress rules</b>: we allow traffic to Db POD from any api-pod POD / any POD from prod namespace / from an host with the IP Address 192.168.5.10</i>
+</div>
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_56.jpg" target="_blank">
+    <img src="assets/CKA_Security_56.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We defined <b>only 2 Ingress rules</b>: we allow traffic to Db POD from any api-pod POD who belonged to prod namespace / from an host with the IP Address 192.168.5.10</i>
+</div>
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+- List Policies
+
+```bash
+controlplane ~ ➜  kubectl get networkpolicy
+
+NAME             POD-SELECTOR   AGE
+payroll-policy   name=payroll   14m
+```
+
+- Describe Policies
+
+```bash
+controlplane ~ ➜  kubectl describe networkpolicy payroll-policy
+
+Name:         payroll-policy
+Namespace:    default
+Created on:   2023-03-30 12:51:32 -0400 EDT
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     name=payroll
+  Allowing ingress traffic:
+    To Port: 8080/TCP
+    From:
+      PodSelector: name=internal
+  Not affecting egress traffic
+  Policy Types: Ingress
 ```
