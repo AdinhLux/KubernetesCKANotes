@@ -2258,3 +2258,1925 @@ vagrant@kubemaster🥃 ~ service kube-apiserver start
 > # Identify secure client using this TLS key file
 > --key=/etc/etcd/etcd server.key
 > ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Security
+
+We will see :
+
+- how does someone gain accessto the cluster ?
+- how their actions are controlled
+- etc.
+
+&nbsp;
+
+### <ins>**Security Primitives**</ins>
+
+<br/>
+
+Here some various security primitives in Kubernetes
+
+> ### 1. Secure Hosts
+
+All access to the hosts must be secured
+
+- Route access disabled
+- Password based authentication disabled
+- ONLY SSH Key based authentication AVZAILABLE
+- Etc.
+
+<br/>
+
+> ### 2. Secure Kubernetes
+
+The <ins>**1st line fo defense**</ins> : controlling the access to the `API server`
+
+- Who can access the server ? ➡️ Defined by the authentication mechanisms
+
+  - Files where we store Username and Passwords
+  - Files where we store Username and Tokens
+  - Certificates
+  - Integration with external providers like `LDAP`
+  - For machines, we create Service Accounts
+
+  <br/>
+
+- What can they do ? ➡️ Defined by the authorization mechanisms
+
+  - Role based access control (where users are associated to groups with specific permissions)
+  - Attribute based access control
+  - Node auhtorizers
+  - Webhook mode
+  - etc.
+
+<br/>
+
+> ### 3. TLS Certificates
+
+All communications with the cluster between the various vomponents such as ETCD cluster, API server, as well as those running on the worker nodes such as the **Kubelet** and **Kube Proxy**, is secured using TLS encryption.
+
+<div align="center">
+  <a href="CKA_Security_1.jpg" target="_blank">
+    <img src="assets/CKA_Security_1.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> ### 4. Network Policies
+
+What about the communication within the cluster ? **By default, all PODs can access all other PODs**
+
+We can now **restrict access between them** using `Network Policies`
+
+<div align="center">
+  <a href="CKA_Security_2.jpg" target="_blank">
+    <img src="assets/CKA_Security_2.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+### <ins>**Authentication**</ins>
+
+Two types of users that require access to the cluster :
+
+- Human users such as administrators and developers
+
+> Kubernetes does `NOT manage User accounts natively`, it relies on one of the options :
+>
+> - a file with User details
+>   - A `static password file` where we have a list of usernames and passwords (<mark>**Deprecated in Kubernetes version 1.19**</mark>)
+>   <br/>
+>   <div align="center">
+>     <a href="CKA_Security_6.jpg" target="_blank">
+>      <img src="assets/CKA_Security_6.jpg" alt="Settings_1" width="600" height="300"/>
+>     </a>
+>   </div>
+>   <br/>
+>   - A `static token file` where we have a list of usernames and tokens (<mark>**Deprecated in Kubernetes version 1.19**</mark>)
+>   <br/>
+>    <div align="center">
+>      <a href="CKA_Security_5.jpg" target="_blank">
+>       <img src="assets/CKA_Security_5.jpg" alt="Settings_1" width="600" height="300"/>
+>      </a>
+>    </div>
+>    <br/>
+> - TLS Certificates
+> - 3rd party identity services like LDAP, Kerberos, etc.
+
+<br/>
+
+- Robots such as processes or services or applications
+
+> Kubernetes `CAN manage Service accounts natively`
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_3.jpg" target="_blank">
+    <img src="assets/CKA_Security_3.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark>**How does API authenticates ?**</mark>
+
+<br/>
+
+All User access is managed by the `API server` whether you're accessing the cluster through Kube Control tool or the API directly. All of these requests go through the Kube API server.
+
+The API authenticates the request before processing it.
+
+<div align="center">
+  <a href="CKA_Security_4.jpg" target="_blank">
+    <img src="assets/CKA_Security_4.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+### <ins>**TLS Certificates**</ins>
+
+<br/>
+
+We will see :
+
+- What are TLS Certificates ?
+- How does K8S use Certificates ?
+- How to generate them ?
+- How to configure them ?
+- How to view them ?
+- How to troubleshoot issues realted to Certificates ?
+
+&nbsp;
+
+> #### <ins>TLS Certificate Basics</ins>
+>
+> ---
+
+<br/>
+
+The following scenario : an user attempt to connect to its bank account. A hacker, sniffing the network can catch the credentials and hack the bank account.
+
+> We must encrypt the data transferred, using `encryption keys`
+
+- <ins>**Symmetric Encryption**</ins> : we share a common key between the client and the server for encrypting / decrypting the message.
+
+  ❌ The hacker can still catch the key and decrypt the message.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_11.jpg" target="_blank">
+    <img src="assets/CKA_Security_11.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+- <ins>**Asymmetric Encryption**</ins> : instead of using a single key to encrypt / decrypt data, this encryption uses a pair of keys
+
+  - `private` key : you can on yourself. You don't share
+  - `public` key
+
+  In the example :
+
+  - The server generates a pair of keys and provides the public key.
+  - The hacker is sniffing the network and catches the public key
+  - The client's browser `encrypts its own public key`, using the one from the server, and sends it to the server.
+  - The hacker gets a copy.
+  - The server `uses its private key` to decrypt the message and `retrieves the client's symetric key`.
+  - ✅ As the hacker doesn't have any private keys, he can not decrypt the message
+
+  <br/>
+
+  ✅ You can only decrypt the message with the associated key.
+
+  ❌ If the hacker creates a fake website, he can decrypt the message, due the above process.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_12.jpg" target="_blank">
+    <img src="assets/CKA_Security_12.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_13.jpg" target="_blank">
+    <img src="assets/CKA_Security_13.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <a href="CKA_Security_14.jpg" target="_blank">
+    <img src="assets/CKA_Security_14.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+**What if we could look at the key we received from the server and say it is a legitimate key from the real bank server ?**
+
+When the server sends the key, it sends a `Certificate` that has the key in it.
+
+<div align="center">
+  <a href="CKA_Security_15.jpg" target="_blank">
+    <img src="assets/CKA_Security_15.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+A certificate is used to guarantee trust between 2 parties during a transaction. It has information about :
+
+- Who the certificate is issued to ?
+- The server public key
+- The location of that server
+- Etc.
+
+<div align="center">
+  <a href="CKA_Security_16.jpg" target="_blank">
+    <img src="assets/CKA_Security_16.jpg" alt="Settings_1" width="750" height="350"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>On the right,</b> the output of an actual certificate</i>
+</div>
+
+<br/>
+
+#### <mark>**How to verify the certificate is legit ?**</mark>
+
+<br/>
+
+<ins>**The question** :</ins> who signed and issued the certificate ?
+
+When receiving a `self-signed` certificate, all web browsers, built-in with a **certificate validation mechanism**, will warn us.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_17.jpg" target="_blank">
+    <img src="assets/CKA_Security_17.jpg" alt="Settings_1" width="500" height="350"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark><ins>**How to create a legitimate certificate ?**</ins></mark>
+
+That's where `Certificate Authorities` come in : they are well known organizations that can sign and validate certificates for us.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_18.jpg" target="_blank">
+    <img src="assets/CKA_Security_18.jpg" alt="Settings_1" width="500" height="250"/>
+  </a>
+</div>
+
+<br/>
+
+<ins>**Process** :</ins>
+
+- We generate a `Certificate Signing Request (CSR)` using our public key and domain Name of our website.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key my-bank.key -out my-bank.csr
+-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=mydomain.com"
+
+my-bank.key my-bank.csr
+```
+
+- The CA verify our details and once it checks out, they sign the certificate and send it back to us.
+
+<br/>
+
+#### <mark><ins>**How browsers know that the CA is legitimate ?**</ins></mark>
+
+<br/>
+
+A CA has its own set of public and private keepers that is used to sign server certificates :
+
+- It uses its `private key` to sign the certificates
+- The `public keys` of all CAs are built into the browsers : they use the it to validate that the certificate was actually signed by the CA themselves.
+
+&nbsp;
+
+> #### <ins>TLS in Kubernetes</ins>
+>
+> ---
+
+We have 3 types of certificates :
+
+- Server Certificates : configured on the servers
+- Root Certificates : configured on CA servers
+- Client Certificates :
+
+  - configured on the clients.
+  - A server can request a client to verify themselves using this certificate.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_7.jpg" target="_blank">
+    <img src="assets/CKA_Security_7.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+All communication between the nodes must be encrypted. 2 primary requirements, all interactions :
+
+- between services and their clients
+- between Kubernetes components
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_8.jpg" target="_blank">
+    <img src="assets/CKA_Security_8.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Server Certificates**
+
+<br/>
+
+- `Kube-API Server` : exposes HTTPS service. Requires certificate for securing communication with its clients.
+- `ETCD` : stores information about cluster. Requires certificate for securing communication with its clients.
+- `Kubelet` : they are services on worker nodes. Also expose an HTTPS API endpoint that the `Kube-API` talks to interact with worker nodes.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_9.jpg" target="_blank">
+    <img src="assets/CKA_Security_9.jpg" alt="Settings_1" width="300" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Client Certificates**
+
+<br/>
+
+- `Administrator` : he accesses the Kube-API server through the `kubectl`. The asmin user requires a certificate and key pair to authenticate to the Kube-API server.
+- `Kube-Scheduler` : he talks to the Kube-API to look for pods that require scheduling and then get the API server to schedule the pods on the right worker nodes. Like admin user, as it is a client it needs to validate its identity using a client TLS certificate.
+- `Kube-Controller`
+- `Kube-Proxy`
+
+The servers communicate amongst them as well.
+
+- `Kube-API` :
+
+  - it is the only one who communicates with `ETCD`. We can also generate ourselves a new pair of certificates to authenticate to the ETCD server (`apiserver-etcd`)
+  - it also communicates with the `Kubelet` server on each of the worker nodes to monitor them. We can also generate ourselves a new pair of certificates to authenticate to the Kubelet server.
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_10.jpg" target="_blank">
+    <img src="assets/CKA_Security_10.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <ins>**How do we generate these certificates ?**</ins>
+
+<br/>
+
+- First we need a `Certificate Authority` to sign all of these certificates. We can have more than one : 1 specifivally for `ETCD` (ETCD server and ETCD server-client certificates), and 1 for the rest.
+
+<br/>
+
+> #### <ins>**TLS certificates creation**</ins>
+>
+> ---
+
+<br/>
+
+To generate certificates we have different tools
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_19.jpg" target="_blank">
+    <img src="assets/CKA_Security_19.jpg" alt="Settings_1" width="500" height="100"/>
+  </a>
+</div>
+
+<br/>
+
+#### **CA Certificates**
+
+<br/>
+
+1. First we create a `private key` using OpenSSL commands
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out ca.key 2048
+```
+
+2. We generate a `CSR` using OpenSSL commands. It is like a certificate with all of our details but without signature. We specify the name of our component in `Common Name (CN)`
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" -out ca.csr
+```
+
+3. We sign the `Certificate` using OpenSSL x509 commands by specifying the CSR. Since it is for the CA itself, it is a `self-signed certificate` using its own private key.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
+```
+
+> Going forward for all other certificates, we will use the CA key pair to sign them. Now the CA has its private key and root certificate file.
+
+&nbsp;
+
+#### **Client Certificates**
+
+<br/>
+
+<div align="left">
+  <a href="CKA_Security_20.jpg" target="_blank">
+    <img src="assets/CKA_Security_20.jpg" alt="Settings_1" width="400" height="80"/>
+  </a>
+</div>
+
+<br/>
+
+1. First we create a `private key` using OpenSSL commands
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out admin.key 2048
+```
+
+2. We generate a `CSR` using OpenSSL commands. Provide a relevant name in CN fileds for logs. Specifying the OU `System Masters` (with administrative privileges) makes the admin user not identified as a basic user
+
+```bash
+vagrant@kubemaster🥃 ~ openssl req -new -key admin.key -subj \
+"/CN=kube-admin/O=system:masters" -out admin.csr
+```
+
+3. We sign the `Certificate` using OpenSSL x509 commands by specifying the CA certificate and CA key. This makes a valid certificate within your cluster.
+
+```bash
+vagrant@kubemaster🥃 ~ openssl x509 -req -in admin.csr –CA ca.crt -CAkey ca.key -out admin.crt
+```
+
+> This whole process of generating a key and a certificate pair is similar to creating an user account for a new user. The certificate is the validated User ID and the key is like its password
+
+<br/>
+
+We execute the same process with the other system components :
+
+<div align="center">
+  <a href="CKA_Security_21.jpg" target="_blank">
+    <img src="assets/CKA_Security_21.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_22.jpg" target="_blank">
+    <img src="assets/CKA_Security_22.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+<div align="center">
+  <a href="CKA_Security_23.jpg" target="_blank">
+    <img src="assets/CKA_Security_23.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_24.jpg" target="_blank">
+    <img src="assets/CKA_Security_24.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **How to use these certificates ?**
+
+For example when managing the cluster using with the Admin user, we can connect :
+
+- using the REST API by passing, the admin crt-key and CA crt.
+
+```bash
+vagrant@kubemaster🥃 ~ curl https://kube-apiserver:6443/api/v1/pods \
+--key admin.key --cert admin.crt
+--cacert ca.crt
+
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {
+    "selfLink": "/api/v1/pods",
+  },
+  "items": []
+}
+```
+
+- using a `kube-config.yaml` within that we specify the API server endpoint details, the certificates to use, etc.
+
+```yaml
+apiVersion: v1
+clusters:
+  - cluster:
+      certificate-authority: ca.crt
+      server: https://kube-apiserver:6443
+    name: kubernetes
+kind: Config
+users:
+  - name: kubernetes-admin
+    user:
+      client-certificate: admin.crt
+      client-key: admin.key
+```
+
+> ## NOTE
+>
+> For various Kubernetes components to verify each other, they all need a copy of `CA's root certificate`. So whenever you configure a server or a client with certificates, you well need to specify CA's root certificate as well.
+
+<div align="center">
+  <a href="CKA_Security_25.jpg" target="_blank">
+    <img src="assets/CKA_Security_25.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### **Server Certificates**
+
+<br/>
+
+> ETCD
+
+We follow the same procedure for generating a certificate for ETCD. `ETCD server can be deployed as a cluster accross multiple servers in HA environment`.
+
+To secure the communication between members in the cluster, we muste generate additional `peer certificates`.
+
+<div align="center">
+  <a href="CKA_Security_26.jpg" target="_blank">
+    <img src="assets/CKA_Security_26.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+
+</div>
+
+<br/>
+
+Once the certificates are generated, specify them while starting the ETCD server.
+
+<div align="center">
+  <a href="CKA_Security_27.jpg" target="_blank">
+    <img src="assets/CKA_Security_27.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+> API server
+
+- Generate the key
+
+```bash
+vagrant@kubemaster🥃 ~ openssl genrsa -out apiserver.key 2048
+```
+
+- Generate the CSR
+- All of the alternate names should be present in the certificate by using an `openssl.cnf`
+- Sign the certificate with CA key and root certificate
+
+<div align="center">
+  <a href="CKA_Security_28.jpg" target="_blank">
+    <img src="assets/CKA_Security_28.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+> ## NOTE
+>
+> Time to look where we are going to specify these keys. Remember to consider the `API client certificates` that are used by the API server, while communicating as a client to the `ETCD` and `Kubelet` servers.
+>
+> The location of the certificates are passed into the Kube API servers `executable` or `service configuration file`.
+>
+> - First CA certificate needs to be passed in (every components needs the CA certificate to verify its clients)
+> - We provide the API server certificates under TLS cert option
+> - We then specify the client certificates used by Kube API server to connect to the `ETCD server`, again with the CA file
+> - Finally the Kube API server-client certificates to connect to the `Kubelet`
+
+<div align="center">
+  <a href="CKA_Security_29.jpg" target="_blank">
+    <img src="assets/CKA_Security_29.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>This screenshot represents a Kube API <b>service</b> if you depoy K8S from scratch, without Kubeadm</i>
+</div>
+
+&nbsp;
+
+> Kubelet server
+
+The Kubelet server is an HTTPS API server that runs on each node, reponsible for managing the node.
+
+That's who the API server talks to for monitoring the node as well as send information regarding `what pods to schedule on this node`.
+
+- You need a certificate key pair for each node
+- They would be `named` after their nodes.
+- Once the certificate created, use them in the `kubelet-config.yaml` file (we must do this for each node in the cluster)
+
+<div align="center">
+  <a href="CKA_Security_30.jpg" target="_blank">
+    <img src="assets/CKA_Security_30.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+Kubelet server also has its set of `Client certificates` to communicate with the Kube API server.
+
+These are used to authenticate in the Kube API server. It needs to know which node is authenticating and give it the right set of permissions : it requires the nodes `to have the right names in the right formats`.
+
+Since the nodes are system components like Kube-Scheduler, Controller-Manager, the format starts :
+
+- with the `system` keyword
+- followed by `node` keyword
+- and then the `node name`
+
+How would the API server give it the right set of permissions ? The nodes must be added to the group `System:Nodes`
+
+<div align="center">
+  <a href="CKA_Security_31.jpg" target="_blank">
+    <img src="assets/CKA_Security_31.jpg" alt="Settings_1" width="700" height="450"/>
+  </a>
+</div>
+
+<br/>
+
+Once the certificates are generated, they go into the kubeconfig files.
+
+&nbsp;
+
+> #### <ins>**TLS certificates details**</ins>
+>
+> ---
+
+<br/>
+
+Whene there are multiple issues related to certificates in the environment, we are asked to perform an Health check of all certificates in the entire cluster.
+
+<div align="center">
+  <a href="CKA_Security_32.jpg" target="_blank">
+    <img src="assets/CKA_Security_32.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+We create a list of certificate files used. There are :
+
+- paths
+- names configured on them
+- alternate names configured on them
+- if any, the organization the certificate account belongs to
+- the issue of the certificate
+- the expiration date
+
+In `Kubeadm`, we can find them in the API server definition file
+
+```bash
+controlplane ~ ➜  cat /etc/kubernetes/manifests/kube-apiserver.yaml
+```
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.13.197.3:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.13.197.3
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt                                           # HERE
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt                                         # HERE
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt                         # HERE
+    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key                          # HERE
+    - --etcd-servers=https://127.0.0.1:2379
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt         # HERE
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key                 # HERE
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt                                     # HERE
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key                              # HERE
+    ...
+```
+
+```bash
+controlplane ~ ➜  cat /etc/kubernetes/manifests/etcd.yaml
+```
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.13.197.3:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.13.197.3:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt                           # HERE
+    - --client-cert-auth=true
+    - --data-dir=/var/lib/etcd
+    - --experimental-initial-corrupt-check=true
+    - --experimental-watch-progress-notify-interval=5s
+    - --initial-advertise-peer-urls=https://192.13.197.3:2380
+    - --initial-cluster=controlplane=https://192.13.197.3:2380
+    - --key-file=/etc/kubernetes/pki/etcd/server.key
+    - --listen-client-urls=https://127.0.0.1:2379,https://192.13.197.3:2379
+    - --listen-metrics-urls=http://127.0.0.1:2381
+    - --listen-peer-urls=https://192.13.197.3:2380
+    - --name=controlplane
+    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt                        # HERE
+    - --peer-client-cert-auth=true                                              # HERE
+    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key                         # HERE
+    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt                    # HERE
+    - --snapshot-count=10000
+    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt                         # HERE
+```
+
+<br/>
+
+To view the details, run the `OpenSSL X509` command and provide the certificate file as input to decode it. We can see below the name and alternate names.
+
+```bash
+controlplane ~ ➜  openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
+```
+
+```yaml
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 5558024164903620405 (0x4d221187c21e0f35)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        Validity
+            Not Before: Mar 14 07:47:32 2023 GMT
+            Not After : Mar 13 07:47:32 2024 GMT
+        Subject: CN = kube-apiserver
+        Subject Public Key Info:
+            ...
+        X509v3 extensions:
+            ...
+
+            X509v3 Subject Alternative Name:
+                DNS:controlplane, DNS:kubernetes, DNS:kubernetes.default, DNS:kubernetes.default.svc, DNS:kubernetes.default.svc.cluster.local, IP Address:10.96.0.1, IP Address:192.13.197.3
+    ...
+```
+
+```bash
+controlplane ~ ➜  openssl x509 -in /etc/kubernetes/pki/etcd/server.crt -text -noout
+```
+
+```yaml
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 5558024164903620405 (0x4d221187c21e0f35)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = etcd-ca
+        Validity
+            Not Before: Mar 14 07:47:33 2023 GMT
+            Not After : Mar 13 07:47:33 2024 GMT
+        Subject: CN = controlplane
+        Subject Public Key Info:
+            ...
+        X509v3 extensions:
+            ...
+
+            X509v3 Subject Alternative Name:
+                DNS:controlplane, DNS:localhost, IP Address:192.13.197.3, IP Address:127.0.0.1, IP Address:0:0:0:0:0:0:0:1
+    ...
+```
+
+<br/>
+
+#### <mark><ins>**How to troubleshoot ?**</ins></mark>
+
+- If API is up
+
+To view logs for errors, run the `Kubectl` command :
+
+<div align="center">
+  <a href="CKA_Security_35.jpg" target="_blank">
+    <img src="assets/CKA_Security_35.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+- If API is down
+
+If API is down and Docker is not installed, check the manifests and `verify if certificate paths are correct` :
+
+```bash
+controlplane ~ ✖ ls /etc/kubernetes/manifests/
+
+etcd.yaml
+kube-apiserver.yaml
+kube-controller-manager.yaml
+kube-scheduler.yaml
+
+controlplane ~ ➜  ls -l /etc/kubernetes/pki/etcd/server* | grep .crt
+-rw-r--r-- 1 root root 1208 Mar 13 07:39 /etc/kubernetes/pki/etcd/server.crt
+```
+
+<br/>
+
+```bash
+controlplane ~ ➜ kubectl get pods -n kube-system
+NAME                                   READY   STATUS    RESTARTS        AGE
+coredns-787d4945fb-6jmtg               1/1     Running   0               54m
+coredns-787d4945fb-v9qss               1/1     Running   0               54m
+etcd-controlplane                      1/1     Running   0               54m
+kube-apiserver-controlplane            1/1     Running   8 (6m38s ago)   54m
+kube-controller-manager-controlplane   1/1     Running   1 (16m ago)     54m
+kube-proxy-c9tgp                       1/1     Running   0               54m
+kube-scheduler-controlplane            1/1     Running   1 (16m ago)     54m
+
+
+# Print the logs for the last 6 hours for a pod
+controlplane ~ ✖ kubectl logs --since=6h etcd-controlplane -n kube-system
+
+...
+
+# crictl is a command-line interface for CRI-compatible container runtimes. You can use it to inspect and debug container runtimes and applications on a Kubernetes node.
+controlplane ~ ✖ crictl ps -a | grep etcd
+
+a2b22d14afe04       fce326961ae2d       11 minutes ago       Running             etcd                      0                   8c63e0203a6bd       etcd-controlplane
+```
+
+<br/>
+
+If `Docker` is installed :
+
+<div align="center">
+  <a href="CKA_Security_36.jpg" target="_blank">
+    <img src="assets/CKA_Security_36.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### <ins>**TLS certificates Workflow & API**</ins>
+>
+> ---
+
+<br/>
+
+The following scenario :
+
+- An administrator has set up a CA server and a bunch of certificates for various components
+- He also has his certificate-key pair
+
+<div align="center">
+  <a href="CKA_Security_33.jpg" target="_blank">
+    <img src="assets/CKA_Security_33.jpg" alt="Settings_1" width="600" height="200"/>
+  </a>
+</div>
+
+<br/>
+
+- We have an additional admin user :
+  - she creates her own private key
+  - she generates a CSR and sends to the 1st admin user.
+  - the 1st admin user takes the CSR to the CA server to get it signed, using the CA server's private key and root certificate.
+  - Thereby, the certificate is generated and sent back to the 2nd admin user
+  - She now has avalid pair of certificate and key to access the cluster
+
+<div align="center">
+  <a href="CKA_Security_34.jpg" target="_blank">
+    <img src="assets/CKA_Security_34.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+- As the numbers of users are increasing, we need an automated way to manage the certificates, the signing requests, etc.
+  - Kubernetes has a `built in certificate API`
+  - When 1st admin receives a CSR, instead of logging into the master node and signing the certificate by himself, he creates a Kubernetes API object called `CertificateSigningRequest`. Once the object is created, it is seen by the administrators of the cluster.
+  - The request can be reviewed and approved using `kubectl` commands.
+  - The generated certificate can be then extracted and shared with the user.
+
+<div align="center">
+  <a href="CKA_Security_37.jpg" target="_blank">
+    <img src="assets/CKA_Security_37.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+```bash
+# 2nd admin generates the key
+second_admin ~ ➜ openssl genrsa -out jane.key 2048
+
+jane.key
+
+# 2nd admin generates the CSR then sends it to the 1st admin user
+second_admin ~ ➜ openssl req -new -key jane.key -subj "/CN=jane" -out jane.csr
+
+jane.csr
+
+-----BEGIN CERTIFICATE REQUEST-----
+MIICWDCCAUACAQAwEzERMA8GA1UEAwwIbmV3LXVzZXIwggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQDO0WJW+DXsAJSIrjpNo5vRIBplnzg+6xc9+UVwkKi0
+LfC27t+1eEnON5Muq99NevmMEOnrDUO/thyVqP2w2XNIDRXjYyF40FbmD+5zWyCK
+9w0BAQsFAAOCAQEAS9iS6C1uxTuf5BBYSU7QFQHUzalNxAdYsaORRQNwHZwHqGi4
+hOK4a2zyNyi44OOijyaD6tUW8DSxkr8BLK8Kg3srREtJql5rLZy9LRVrsJghD4gY
+P9NL+aDRSxROVSqBaB2nWeYpM5cJ5TF53lesNSNMLQ2++RMnjDQJ7juPEic8/dhk
+Wr2EUM6UawzykrdHImwTv2mlMY0R+DNtV1Yie+0H9/YElt+FSGjh5L5YUvI1Dqiy
+4l3E/y3qL71WfAcuH3OsVpUUnQISMdQs0qWCsbE56CC5DhPGZIpUbnKUpAwka+8E
+vwQ07jG+hpknxmuFAeXxgUwodALaJ7ju/TDIcw==
+-----END CERTIFICATE REQUEST-----
+```
+
+```bash
+# The 1st admin will create the CSR object, using a manifest file
+first_admin ~ ➜ vi jane-csr.yaml
+```
+
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  name: jane
+spec:
+  # You specify the groups where the user should be part of
+  groups:
+    - system:authenticated
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  # certificate encoded using the base64 command
+  # cat jane.csr | base64 | tr -d "\n"
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1dEQ0NBVUFDQVFBd0V6RVJNQThHQTFVRUF3d0libVYzTFhWelpYSXdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRE8wV0pXK0RYc0FKU0lyanBObzV2UklCcGxuemcrNnhjOStVVndrS2kwCkxmQzI3dCsxZUVuT041TXVxOTlOZXZtTUVPbnJ
+```
+
+```bash
+# Once the object is created we can see it with kubectl commands
+second_admin ~ ➜ kubectl get csr
+
+NAME AGE REQUESTOR CONDITION
+jane 10m admin@example.com Pending
+
+# Approve the certificate
+second_admin ~ ➜ kubectl certificate approve jane
+
+jane approved!
+```
+
+Kubernetes signs the certificate using the CA key pairs and generates a certificate for the user. This certificate can then be extracted and shared with the user.
+
+```bash
+# View the certificate
+second_admin ~ ➜ kubectl get csr jane -o yaml
+```
+
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  creationTimestamp: 2019-02-13T16:36:43Z
+  name: new-user
+spec:
+  groups:
+   - system:masters
+   - system:authenticated
+  usages:
+   - digital signature
+   - key encipherment
+   - server auth
+   username: kubernetes-admin
+  status:
+    certificate:
+      LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURDakNDQWZLZ0F3SUJBZ0lVRmwy
+Q2wxYXoxaWl5M3JNVisreFRYQUowU3dnd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0ZURVRN
+QkVHQTFVRUF4TUthM1ZpWlhKdVpYUmxjekFlRncweE9UQXlNVE14TmpNeU1EQmFGd1dn
+Y0ZFeDl2ajNuSXY3eFdDS1NIRm5sU041c0t5Z0VxUkwzTFM5V29GelhHZDdWCmlEZ2FO
+MVVRMFBXTVhjN09FVnVjSWc1Yk4weEVHTkVwRU5tdUlBNlZWeHVjS1h6aG9ldDY0MEd1
+MGU0YXFKWVIKWmVMbjBvRTFCY3dod2xic0I1ND0KLS0tLS1FTkQgQ0VSVElGSUNBVEUt
+LS0tLQo=
+    conditions:
+    - lastUpdateTime: 2019-02-13T16:37:21Z
+      message: This CSR was approved by kubectl certificate approve.
+      reason: KubectlApprove
+      type: Approved
+```
+
+<br/>
+
+#### <mark><ins>**Who does all of this for us ?**</ins></mark>
+
+Let's look ath the Kubernetes `control plane` components :
+
+- Kube-API server
+- Scheduler
+- Controller Manager
+- ETCD server
+- etc.
+
+Which of these components are responsible for all the certificate related operations ?
+
+<div align="center">
+  <a href="CKA_Security_38.jpg" target="_blank">
+    <img src="assets/CKA_Security_38.jpg" alt="Settings_1" width="300" height="200"/>
+  </a>
+</div>
+
+<br/>
+
+It is the `Controller Manager` that carries out all of these operations, especially these controllers inside called :
+
+- `CSR-Approving`
+- `CSR-Signing`
+- Etc.
+
+<div align="center">
+  <a href="CKA_Security_39.jpg" target="_blank">
+    <img src="assets/CKA_Security_39.jpg" alt="Settings_1" width="300" height="150"/>
+  </a>
+</div>
+
+<br/>
+
+If anyone has to sign certificates, they need the CA servers root certificate and private key. The Controller Manager service configuration has 2 options where we can specify it
+
+```bash
+first_admin ~ ➜ cat /etc/kubernetes/manifests/kube-controller-manager.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    component: kube-controller-manager
+    tier: control-plane
+  name: kube-controller-manager
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-controller-manager
+    - --allocate-node-cidrs=true
+    - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --bind-address=127.0.0.1
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --cluster-cidr=10.244.0.0/16
+    - --cluster-name=kubernetes
+    - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt                        # HERE
+    - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key                         # HERE
+    - --controllers=*,bootstrapsigner,tokencleaner
+    - --kubeconfig=/etc/kubernetes/controller-manager.conf
+    - --leader-elect=true
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --root-ca-file=/etc/kubernetes/pki/ca.crt
+    - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --use-service-account-credentials=true
+    ...
+```
+
+&nbsp;
+
+> #### <ins>**Kubeconfig**</ins>
+>
+> ---
+
+<br/>
+
+With what we saw with certificates, we can pass them, using the REST API for querying information on our cluster.
+
+```bash
+first_admin ~ ➜ curl https://my-kube-playground:6443/api/v1/pods \
+--key admin.key
+--cert admin.crt
+--cacert ca.crt
+```
+
+```json
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {
+    "selfLink": "/api/v1/pods"
+  },
+  "items": []
+}
+```
+
+```bash
+first_admin ~ ➜ kubectl get pods
+--client-key admin.key
+--client-certificate admin.crt
+--certificate-authority ca.crt
+--server my-kube-playground:6443
+
+No resources found.
+```
+
+Typing every time these parameters can be tedious : we can pass the arguments into a config file.
+
+```bash
+# File name : config
+
+--client-key admin.key
+--client-certificate admin.crt
+--certificate-authority ca.crt
+--server my-kube-playground:6443
+```
+
+```bash
+first_admin ~ ➜ kubectl get pods
+--kubeconfig config
+
+No resources found.
+```
+
+We can also create a `Kubeconfig` file.
+
+```yaml
+apiVersion: v1
+kind: Config
+
+# We can specify a context by default
+current-context: dev-user@google
+
+# Clusters : the various K8S clusters that you need access to
+clusters:
+  - name: my-kube-playground
+    cluster:
+      certificate-authority: ca.crt
+      server: https://my-kube-playground:6443
+
+# Users : accounts with which you have access to these clusters. These users can have different privileges, based on the cluster.
+users:
+  - name: my-kube-admin
+    user:
+      client-certificate: admin.crt
+      client-key: admin.key
+
+# Contexts : define which account will be used to access which cluster
+contexts:
+  - name: my-kube-admin@my-kube-playground
+    context:
+      cluster: my-kube-playground
+      user: my-kube-admin
+```
+
+<div align="center">
+  <a href="CKA_Security_40.jpg" target="_blank">
+    <img src="assets/CKA_Security_40.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>With contexts section we can define which user can access which cluster. For example, only admin can access Production cluster.</i>
+</div>
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To view Kubeconfig. If we don't specify which file to use, K8S will look at the `.kube` folder in the user's home directory.
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config view
+```
+
+- To view Kubeconfig while specifying the file
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config view --kubeconfig=my-custom-config
+```
+
+- To change the current context
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl config use-context prod-user@production
+```
+
+&nbsp;
+
+Each clusters can be configured with multiple namespaces within it. With Kubeconfig file, we have a `namespace` section in `contexts` section.
+
+<div align="center">
+  <a href="CKA_Security_41.jpg" target="_blank">
+    <img src="assets/CKA_Security_41.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### <ins>**API Groups**</ins>
+>
+> ---
+
+<br/>
+
+Kubernetes has multiple API endpoints we can interact through `kubectl` or `REST` :
+
+- `/metrics`
+- `/healthz`
+- `/version` : for viewing the cluster version
+- `/api`
+- `/apis`
+- `/logs` : for integrating with 3rd party loggin applications
+
+<br/>
+
+We will focus on the API responsible for the cluster functionnalities :
+
+- the core group `/api` (where all core functionality exists)
+- the named group `/apis`
+
+<div align="center">
+  <a href="CKA_Security_42.jpg" target="_blank">
+    <img src="assets/CKA_Security_42.jpg" alt="Settings_1" width="300" height="300"/>
+  </a>
+  <a href="CKA_Security_43.jpg" target="_blank">
+    <img src="assets/CKA_Security_43.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+&nbsp;
+
+> #### <ins>**Authorization**</ins>
+>
+> ---
+
+`Authorization` defines what users can do with the cluster
+
+<div align="center">
+  <a href="CKA_Security_44.jpg" target="_blank">
+    <img src="assets/CKA_Security_44.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+6 types of autorizations :
+
+- **AlwaysAllow**
+- **Node**
+- **ABAC** (Attribute Based Authorization) : You create a file for each user
+- **RBAC** (Role Based Authorization) : Tou create a file where you associate multiple users
+- **Webhook** : If we want to outsource authorization mechanisms (using `Open Policy Agent`)
+- **AlwaysDeny**
+
+When having set multiple modules, the request is first handled by the 1st module. If denied, it is forwarded to the next module, until one grants the user permission to get access to the requested object.
+
+<div align="center">
+  <a href="CKA_Security_45.jpg" target="_blank">
+    <img src="assets/CKA_Security_45.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <ins>RBAC</ins>
+
+- We create a role definition file
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: default
+rules:
+  # For Core groups, you can leave the apiGroups as blank
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
+      - create
+      - delete
+```
+
+- We link it to the user by creating another object called `role binding`
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-user-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: dev-user
+```
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To view the created roles
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get roles
+
+NAME        CREATED AT
+developer   2023-03-27T13:35:48Z
+```
+
+- To view the binding roles
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get rolebindings
+
+NAME               ROLE             AGE
+dev-user-binding   Role/developer   6m17s
+```
+
+- To view details about the role / role binding
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe role developer
+
+Name:         developer
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  pods       []                 []              [list create delete]
+
+
+vagrant@kubemaster🥃 ~ kubectl describe rolebinding devuser-developer-binding
+
+Name:         devuser-developer-binding
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  developer
+Subjects:
+  Kind  Name      Namespace
+  ----  ----      ---------
+  User  dev-user
+```
+
+- To check access for us / another user
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl auth can-i create deployments
+vagrant@kubemaster🥃 ~ kubectl auth can-i delete nodes
+yes
+
+vagrant@kubemaster🥃 ~ kubectl auth can-i create deployments --as dev-user
+vagrant@kubemaster🥃 ~ kubectl auth can-i create nodes --as dev-user
+no
+
+# Check if dev-user can create pods in 'test' namepsace
+vagrant@kubemaster🥃 ~ kubectl auth can-i create nodes --as dev-user --namespace test
+```
+
+&nbsp;
+
+> #### <ins>**Cluster Roles and Role Bindings**</ins>
+>
+> ---
+
+Roles and Role Bindings are namespaced, meaning they're created within namespaces.
+
+<ins>**For Reminder :**</ins>
+
+Namespaces are used to group or isolate resources like pods, deployments, and services.
+
+**Nodes** CAN NOT be associated to any particular namespaces : they are cluster-wide or cluster-scoped resources.
+
+<br/>
+
+So the resources are categorized as either `namespaced` or `cluster-scoped`.
+
+<div align="center">
+  <a href="CKA_Security_46.jpg" target="_blank">
+    <img src="assets/CKA_Security_46.jpg" alt="Settings_1" width="700" height="400"/>
+  </a>
+</div>
+
+<br/>
+
+For cluster-scoped resources, we have `Cluster Roles` and `Cluster Role Bindings`
+
+```yaml
+# kubectl get clusterrole  node-admin -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-admin
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - delete
+```
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: michelle-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: michelle
+```
+
+&nbsp;
+
+> #### <ins>**Service Accounts**</ins>
+>
+> ---
+
+This conccept is linked to other concepts such as authentication, authorization, RBAC, etc.
+
+There are 2 types of accounts :
+
+- **User**
+
+  - an Admin performing administrative tasks
+  - a Developer deploying applications
+
+<br/>
+
+- **Service**
+
+  - a monitoring application like `Prometheus` pulling the K8S API for performance metrics
+  - an automated build tool like `Jenkins` for deploying applications on the cluster
+
+<br/>
+
+> When a Service account is created, a token is automatically created and stored into a secret object. This `token` is what must be used by the external application while authenticating to the K8S API.
+
+<br/>
+
+> - Each namespace has its own default service account. Whenever a pod is created, the default SA and its token are automatically mounted to that pod as a `volume mount`.
+> - The secret token is mounted at `var/run/secrets/kubernetes.io/serviceaccount` inside the pod
+> - The default SA is very restricted : it only has permission to run basic K8S API queries
+> - We can not edit the SA of an existing pod : we must delete and recreate the pod through the deployment.
+
+<br/>
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard-sa
+  namespace: default
+```
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+<br/>
+
+- To create accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl create serviceaccount dashboard-sa
+```
+
+- To list accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl get serviceaccounts
+
+NAME           SECRETS   AGE
+default        0         23m
+dev            0         17m
+dashboard-sa   0         104s
+```
+
+- To detail accounts
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl describe serviceaccount dashboard-sa
+
+Name:                dashboard-sa
+Namespace:           default
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  <none>
+Mountable secrets:   <none>
+Tokens:              <none>
+Events:              <none>
+```
+
+- To display a token through the secret object
+
+```bash
+# We can use it as a bearer token when sending REST requests
+vagrant@kubemaster🥃 ~ kubectl describe secret dashboard-sa-token-kbbdm
+```
+
+&nbsp;
+
+> #### <ins>**Image Security**</ins>
+>
+> ---
+
+To use an image from a private registry :
+
+- we replace the image name with the `full path` of private repository
+- we create a `secret object` with the credentials for authentication
+
+```bash
+# Docker way
+vagrant@kubemaster🥃 ~ docker login private-registry.io
+vagrant@kubemaster🥃 ~ docker run private-registry.io/apps/internal-app
+```
+
+```bash
+vagrant@kubemaster🥃 ~ kubectl create secret docker-registry regcred \
+--docker-server=private-registry.io \
+--docker-username=registry-user \
+--docker-password=registry-password \
+--docker-email=registry-user@org.com
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+spec:
+  containers:
+    - name: nginx
+      image: private-registry.io/apps/internal-app
+  imagePullSecrets:
+    # The secret object we created before
+    - name: regcred
+```
+
+&nbsp;
+
+> #### <ins>**Security Context**</ins>
+>
+> ---
+
+When running a Docker container, we have the option to define a set of security standards, such as :
+
+- the ID of the user used to run the container
+- the Linux capabilities tha can be added or removed from the container
+- etc.
+
+<div align="center">
+  <a href="CKA_Security_47.jpg" target="_blank">
+    <img src="assets/CKA_Security_47.jpg" alt="Settings_1" width="400" height="300"/>
+  </a>
+  <a href="CKA_Security_48.jpg" target="_blank">
+    <img src="assets/CKA_Security_48.jpg" alt="Settings_1" width="400" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>In this picture, we have a root user from the container <b>who is different from the root user's host</b>. As you can see some privileges are not available. Here we're adding the <b>MAC_ADMIN</b> privilege to the root user's container.</i>
+</div>
+
+<br/>
+
+In Kubernetes, you may choose to configure the security settings at the **Container** or **POD** level
+
+> Setting at **Container** level will override the **POD** level
+
+```yaml
+# Configuring at POD level
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-pod
+spec:
+  securityContext:
+    # Setting User to use (with ID 1000)
+    runAsUser: 1000
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+```
+
+```yaml
+# Configuring at Container level
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-pod
+spec:
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+      securityContext:
+        # Setting User to use (with ID 1000)
+        runAsUser: 1000
+        # Adding Linux capabilities (only supported at container level)
+        capabilities:
+          add: ["MAC_ADMIN"]
+```
+
+&nbsp;
+
+> #### <ins>**Network Policies**</ins>
+>
+> ---
+
+<br/>
+
+2 Types of traffic :
+
+- Ingress (incoming traffic from the users)
+- Egress (outgoing request to the API server)
+
+<div align="center">
+  <a href="CKA_Security_49.jpg" target="_blank">
+    <img src="assets/CKA_Security_49.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+  <a href="CKA_Security_50.jpg" target="_blank">
+    <img src="assets/CKA_Security_50.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>By looking at the right picture, <b>from the API server's perspective</b>, it has an Ingress traffic from the Web application to the port 5000 and it has an Egress traffic to port 3306</i>
+</div>
+
+<br/>
+
+By gathering all the perspectives, we define our list of rules required to get the traffic working.
+
+<div align="center">
+  <a href="CKA_Security_51.jpg" target="_blank">
+    <img src="assets/CKA_Security_51.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+Let's look at network security in K8S. We have a set of nodes hosting a set of pods and services :
+
+- Each node, pod and service has an IP address
+- The PODs should be able to communicate with each other without having to configure any additional settings like routes.
+
+<br/>
+
+> K8S is configured by default with a rulle `All Allow` to allow traffic from any pod to any other pod or services within the cluster
+
+<div align="center">
+  <a href="CKA_Security_52.jpg" target="_blank">
+    <img src="assets/CKA_Security_52.jpg" alt="Settings_1" width="600" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+In the previous example, we can say that our 3 POD applications can communicate with each other : **it can not be allowed**.
+
+This is where we will use `Network Policies`. Here, on DB POD, we only allow traffic from API POD to the port 3306
+
+<div align="center">
+  <a href="CKA_Security_53.jpg" target="_blank">
+    <img src="assets/CKA_Security_53.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+    <a href="CKA_Security_53.jpg" target="_blank">
+    <img src="assets/CKA_Security_54.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+#### <mark><ins>**How to link the Policy to the Pod?**</ins></mark>
+
+Using `labels` and `selectors` :
+
+- We label the POD
+- We use the same label on the `podSelector` field in the network policy file
+- Then we build our rule
+
+```yaml
+# In POD Definition file (payroll)
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    # POD label to be defined in Network Policy file
+    name: payroll
+  name: payroll
+  namespace: default
+spec:
+  containers:
+    - env:
+        - name: APP_NAME
+          value: Payroll Application
+        - name: BG_COLOR
+          value: blue
+      image: kodekloud/webapp-conntest
+      imagePullPolicy: Always
+      name: payroll
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: kube-api-access-qhvtc
+          readOnly: true
+```
+
+```yaml
+# In POD Definition file (internal)
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    # POD label to be defined in Network Policy file
+    name: internal
+  name: internal
+  namespace: default
+spec:
+  containers:
+    - env:
+        - name: APP_NAME
+          value: Internal Facing Application
+        - name: BG_COLOR
+          value: blue
+      image: kodekloud/webapp-conntest
+      imagePullPolicy: Always
+      name: internal
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: kube-api-access-bkhx2
+          readOnly: true
+```
+
+```yaml
+# In Network Policy Definition file
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payroll-policy
+  namespace: default
+spec:
+  # POD  as reference : payroll
+  podSelector:
+    matchLabels:
+      name: payroll
+  # 'payroll' POD allows incoming traffic from 'internal' POD to communicate to port 8080
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              name: internal
+      ports:
+        - port: 8080
+          protocol: TCP
+  policyTypes:
+    - Ingress
+```
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_55.jpg" target="_blank">
+    <img src="assets/CKA_Security_55.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We defined <b>3 Ingress rules</b>: we allow traffic to Db POD from any api-pod POD / any POD from prod namespace / from an host with the IP Address 192.168.5.10</i>
+</div>
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Security_56.jpg" target="_blank">
+    <img src="assets/CKA_Security_56.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i>We defined <b>only 2 Ingress rules</b>: we allow traffic to Db POD from any api-pod POD who belonged to prod namespace / from an host with the IP Address 192.168.5.10</i>
+</div>
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+- List Policies
+
+```bash
+controlplane ~ ➜  kubectl get networkpolicy
+
+NAME             POD-SELECTOR   AGE
+payroll-policy   name=payroll   14m
+```
+
+- Describe Policies
+
+```bash
+controlplane ~ ➜  kubectl describe networkpolicy payroll-policy
+
+Name:         payroll-policy
+Namespace:    default
+Created on:   2023-03-30 12:51:32 -0400 EDT
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     name=payroll
+  Allowing ingress traffic:
+    To Port: 8080/TCP
+    From:
+      PodSelector: name=internal
+  Not affecting egress traffic
+  Policy Types: Ingress
+```

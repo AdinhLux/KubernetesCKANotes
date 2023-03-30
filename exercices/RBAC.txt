@@ -1,0 +1,299 @@
+Q:
+--
+Inspect the environment and identify the authorization modes configured on the cluster.
+
+Check the kube-apiserver settings.
+
+
+A:
+--
+Use the command kubectl describe pod kube-apiserver-controlplane -n kube-system and look for --authorization-mode.
+
+```yaml
+controlplane ~ ➜  kubectl describe pod kube-apiserver-controlplane -n kube-system
+Name:                 kube-apiserver-controlplane
+Namespace:            kube-system
+...
+Containers:
+  kube-apiserver:
+    Container ID:  containerd://a3deb8893fbf1be86756dabc796f8655ae9c99225bc35f5d6795dc2d7a5153a4
+    Image:         registry.k8s.io/kube-apiserver:v1.26.0
+    Image ID:      registry.k8s.io/kube-apiserver@sha256:d230a0b88a3daf14e4cce03b906b992c8153f37da878677f434b1af8c4e8cc75
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      kube-apiserver
+      --advertise-address=192.23.120.3
+      --allow-privileged=true
+      --authorization-mode=Node,RBAC
+      --client-ca-file=/etc/kubernetes/pki/ca.crt
+      --enable-admission-plugins=NodeRestriction
+      --enable-bootstrap-token-auth=true
+      --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+      --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+      --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+      --etcd-servers=https://127.0.0.1:2379
+      --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+      --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+      --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+      --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+      --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+      --requestheader-allowed-names=front-proxy-client
+      --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+      --requestheader-extra-headers-prefix=X-Remote-Extra-
+      --requestheader-group-headers=X-Remote-Group
+      --requestheader-username-headers=X-Remote-User
+      --secure-port=6443
+      --service-account-issuer=https://kubernetes.default.svc.cluster.local
+      --service-account-key-file=/etc/kubernetes/pki/sa.pub
+      --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+      --service-cluster-ip-range=10.96.0.0/12
+      --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+      --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    State:          Running
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+What are the resources the kube-proxy role in the kube-system namespace is given access to ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl describe role kube-proxy -n kube-system
+Name:         kube-proxy
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources   Non-Resource URLs  Resource Names  Verbs
+  ---------   -----------------  --------------  -----
+  configmaps  []                 [kube-proxy]    [get]
+
+
+===============================================================================================================================
+
+Q:
+--
+Which of the following statements are true ?
+
+
+A:
+--
+kube-proxy role can get details of configmap object by the name kube-proxy only
+
+
+===============================================================================================================================
+
+Q:
+--
+Which account is the kube-proxy role assigned to ?
+
+
+A:
+--
+Group: system:bootstrappers:kubeadm:default-node-token
+
+controlplane ~ ➜  kubectl describe rolebinding kube-proxy -n kube-system
+Name:         kube-proxy
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  kube-proxy
+Subjects:
+  Kind   Name                                             Namespace
+  ----   ----                                             ---------
+  Group  system:bootstrappers:kubeadm:default-node-token  
+  
+
+===============================================================================================================================
+
+Q:
+--
+A user dev-user is created. User's details have been added to the kubeconfig file. 
+Inspect the permissions granted to the user. 
+Check if the user can list pods in the default namespace.
+
+
+Use the --as dev-user option with kubectl to run commands as the dev-user.
+
+A:
+--
+dev-user does not have permissions to list pods
+
+controlplane ~ ➜  kubectl get pods --as dev-user
+Error from server (Forbidden): pods is forbidden: User "dev-user" cannot list resource "pods" in API group "" in the namespace "default"
+
+
+===============================================================================================================================
+
+Q:
+--
+Create the necessary roles and role bindings required for the dev-user to create, list and delete pods in the default namespace.
+
+Use the given spec:
+
+Role: developer
+Role Resources: pods
+Role Actions: list
+Role Actions: create
+Role Actions: delete
+RoleBinding: dev-user-binding
+RoleBinding: Bound to dev-user
+
+
+A:
+--
+To create a Role:- kubectl create role developer --namespace=default --verb=list,create,delete --resource=pods
+To create a RoleBinding:- kubectl create rolebinding dev-user-binding --namespace=default --role=developer --user=dev-user
+
+
+controlplane ~ ➜  kubectl create role developer --namespace=default --verb=list,create,delete --resource=pods
+role.rbac.authorization.k8s.io/developer created
+
+controlplane ~ ➜  kubectl create rolebinding dev-user-binding --namespace=default --role=developer --user=dev-user
+rolebinding.rbac.authorization.k8s.io/dev-user-binding created
+
+
+OR
+
+```yaml
+users:
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: developer
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "create","delete"]
+```
+
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-user-binding
+subjects:
+- kind: User
+  name: dev-user
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: developer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+A set of new roles and role-bindings are created in the blue namespace for the dev-user. 
+However, the dev-user is unable to get details of the dark-blue-app pod in the blue namespace. 
+Investigate and fix the issue.
+
+We have created the required roles and rolebindings, but something seems to be wrong.
+
+
+A:
+--
+New roles and role bindings are created in the blue namespace.
+Check out the resourceNames configured on the role.
+
+Run the command: kubectl edit role developer -n blue and correct the resourceNames field. 
+You don't have to delete the role.
+
+controlplane ~ ➜  kubectl edit role developer -n blue
+role.rbac.authorization.k8s.io/developer edited
+
+```BEFORE
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: "2023-03-27T13:25:40Z"
+  name: developer
+  namespace: blue
+  resourceVersion: "514"
+  uid: 61a605e3-bfd8-4b4f-a345-5eb7d0f8e5a4
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - blue-app
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - create
+  - delete
+```
+
+```AFTER
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: "2023-03-27T13:25:40Z"
+  name: developer
+  namespace: blue
+  resourceVersion: "514"
+  uid: 61a605e3-bfd8-4b4f-a345-5eb7d0f8e5a4
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - dark-blue-app
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - create
+  - delete
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Add a new rule in the existing role developer to grant the dev-user permissions to create deployments in the blue namespace.
+
+Remember to add api group "apps".
+
+
+A:
+--
+controlplane ~ ➜  kubectl edit role developer -n blue
+role.rbac.authorization.k8s.io/developer edited
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: blue
+rules:
+- apiGroups:
+  - apps
+  resourceNames:
+  - dark-blue-app
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+```

@@ -1,0 +1,487 @@
+Q:
+--
+Identify the certificate file used for the kube-api server
+
+
+A:
+--
+Look for the line --tls-cert-file.
+
+$ cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.19.168.6:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.19.168.6
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+    - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+    - --etcd-servers=https://127.0.0.1:2379
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    ...
+```
+
+===============================================================================================================================
+
+Q:
+--
+Identify the Certificate file used to authenticate kube-apiserver as a client to ETCD Server.
+
+
+A:
+--
+Look for the line --etcd-certfile.
+
+$ cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the key used to authenticate kubeapi-server to the kubelet server.
+
+
+A:
+--
+Look for the line --kubelet-client-key.
+
+$ cat /etc/kubernetes/manifests/kube-apiserver.yaml
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the ETCD Server Certificate used to host ETCD server.
+
+
+A:
+--
+Look for the line --cert-file.
+
+$ cat /etc/kubernetes/manifests/etcd.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.19.168.6:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.19.168.6:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+    - --client-cert-auth=true
+    - --data-dir=/var/lib/etcd
+    - --experimental-initial-corrupt-check=true
+    - --experimental-watch-progress-notify-interval=5s
+    - --initial-advertise-peer-urls=https://192.19.168.6:2380
+    - --initial-cluster=controlplane=https://192.19.168.6:2380
+    - --key-file=/etc/kubernetes/pki/etcd/server.key
+    - --listen-client-urls=https://127.0.0.1:2379,https://192.19.168.6:2379
+    - --listen-metrics-urls=http://127.0.0.1:2381
+    - --listen-peer-urls=https://192.19.168.6:2380
+    - --name=controlplane
+    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+    - --peer-client-cert-auth=true
+    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+    - --snapshot-count=10000
+    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+    ...
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Identify the ETCD Server CA Root Certificate used to serve ETCD Server.
+
+ETCD can have its own CA. So this may be a different CA certificate than the one used by kube-api server.
+
+
+A:
+--
+Look for the line --trusted-ca-file.
+
+$ cat /etc/kubernetes/manifests/etcd.yaml
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the Common Name (CN) configured on the Kube API Server Certificate?
+
+OpenSSL Syntax: openssl x509 -in file-path.crt -text -noout
+
+
+A:
+--
+Run the command openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text and look for Subject CN.
+
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text
+
+```
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 890014717438105002 (0xc59f7ab85c495aa)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        Validity
+            Not Before: Mar 13 11:39:38 2023 GMT
+            Not After : Mar 12 11:39:38 2024 GMT
+        Subject: CN = kube-apiserver
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                RSA Public-Key: (2048 bit)
+                Modulus:
+					...
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the name of the CA who issued the Kube API Server Certificate ?
+
+
+A:
+--
+
+Run the command openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text and look for issuer.
+
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text
+
+```
+ Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 890014717438105002 (0xc59f7ab85c495aa)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        ...
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+Which of the below alternate names is not configured on the Kube API Server Certificate ?
+
+
+A:
+--
+
+Run the command openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text and look at Alternative Names.
+
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text
+
+```
+ Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 890014717438105002 (0xc59f7ab85c495aa)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        ...
+            X509v3 Subject Alternative Name: 
+                DNS:controlplane, DNS:kubernetes, DNS:kubernetes.default, DNS:kubernetes.default.svc, DNS:kubernetes.default.svc.cluster.local, IP Address:10.96.0.1, IP Address:192.19.168.6
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the Common Name (CN) configured on the ETCD Server certificate ?
+
+
+A:
+--
+Run the command openssl x509 -in /etc/kubernetes/pki/etcd/server.crt -text and look for Subject CN.
+
+$ openssl x509 -in /etc/kubernetes/pki/etcd/server.crt -text
+
+```
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 5037339636143933051 (0x45e839b5c95ac67b)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = etcd-ca
+        Validity
+            Not Before: Mar 13 11:39:39 2023 GMT
+            Not After : Mar 12 11:39:39 2024 GMT
+        Subject: CN = controlplane
+		...
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+How long, from the issued date, is the Kube-API Server Certificate valid for?
+
+File: /etc/kubernetes/pki/apiserver.crt
+
+
+A:
+--
+Run the command openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text and check on the Expiry date.
+
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text
+
+```
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 890014717438105002 (0xc59f7ab85c495aa)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        Validity
+            Not Before: Mar 13 11:39:38 2023 GMT
+            Not After : Mar 12 11:39:38 2024 GMT
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+How long, from the issued date, is the Root CA Certificate valid for?
+
+File: /etc/kubernetes/pki/ca.crt
+
+
+A:
+--
+Run the command openssl x509 -in /etc/kubernetes/pki/ca.crt -text and look for the validity.
+
+$ openssl x509 -in /etc/kubernetes/pki/ca.crt -text
+
+
+===============================================================================================================================
+
+Q:
+--
+Kubectl suddenly stops responding to your commands. Check it out! 
+Someone recently modified the /etc/kubernetes/manifests/etcd.yaml file
+
+You are asked to investigate and fix the issue. 
+Once you fix the issue wait for sometime for kubectl to respond. Check the logs of the ETCD container.
+
+
+A:
+--
+Inspect the --cert-file option in the manifests file.
+
+The certificate file used here is incorrect. It is set to /etc/kubernetes/pki/etcd/server-certificate.crt which does not exist. 
+As we saw in the previous questions the correct path should be /etc/kubernetes/pki/etcd/server.crt.
+
+controlplane ~ ➜  ls -l /etc/kubernetes/pki/etcd/server* | grep .crt
+-rw-r--r-- 1 root root 1208 Mar 13 07:39 /etc/kubernetes/pki/etcd/server.crt
+
+Update the YAML file with the correct certificate path and wait for the ETCD pod to be recreated. wait for the kube-apiserver to get to a Ready state.
+
+
+controlplane ~ ➜ vi /etc/kubernetes/manifests/etcd.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.19.168.6:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.19.168.6:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server-certificate.crt
+```
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.19.168.6:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.19.168.6:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+```
+
+NOTE: It may take a few minutes for the kubectl commands to work again so please be patient.
+
+controlplane ~ ✖ kubectl get pods -n kube-system
+NAME                                   READY   STATUS    RESTARTS        AGE
+coredns-787d4945fb-sjcgg               1/1     Running   0               32m
+coredns-787d4945fb-v6dfv               1/1     Running   0               32m
+etcd-controlplane                      1/1     Running   0               32m
+kube-apiserver-controlplane            1/1     Running   6 (103s ago)    32m
+kube-controller-manager-controlplane   1/1     Running   1 (6m46s ago)   32m
+kube-proxy-72r8k                       1/1     Running   0               32m
+kube-scheduler-controlplane            1/1     Running   1 (6m41s ago)   32m
+
+
+===============================================================================================================================
+
+Q:
+--
+The kube-api server stopped again! Check it out. 
+Inspect the kube-api server logs and identify the root cause and fix the issue.
+
+Run crictl ps -a command to identify the kube-api server container. 
+Run crictl logs container-id command to view the logs.
+
+
+A:
+--
+ETCD has its own CA. The right CA must be used for the ETCD-CA file in /etc/kubernetes/manifests/kube-apiserver.yaml
+
+If we inspect the kube-apiserver container on the controlplane, we can see that it is frequently exiting.
+
+controlplane ~ ➜ crictl ps -a | grep kube-apiserver
+fa9b6f0dfce47       a31e1d84401e6       5 minutes ago       Running             kube-apiserver            8                   c223fb3a5e51e       kube-apiserver-controlplane
+dfbc76d4adc64       a31e1d84401e6       10 minutes ago      Exited              kube-apiserver            7                   c223fb3a5e51e       kube-apiserver-controlplane
+
+
+If we now inspect the logs of this exited container, we would see the following errors :
+
+controlplane ~ ➜  crictl logs --tail=2 1fb242055cff8
+E0313 08:14:56.364980   15736 remote_runtime.go:415] "ContainerStatus from runtime service failed" err="rpc error: code = NotFound desc = an error occurred when try to find container \"1fb242055cff8\": not found" containerID="1fb242055cff8"
+FATA[0000] rpc error: code = NotFound desc = an error occurred when try to find container "1fb242055cff8": not found
+
+
+This indicates an issue with the ETCD CA certificate used by the kube-apiserver. Correct it to use the file /etc/kubernetes/pki/etcd/ca.crt.
+
+Once the YAML file has been saved, wait for the kube-apiserver pod to be Ready. This can take a couple of minutes.
+
+$ vi /etc/kubernetes/manifests/kube-apiserver.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.19.168.6:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.19.168.6
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/ca.crt
+```
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint: 192.19.168.6:6443
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --advertise-address=192.19.168.6
+    - --allow-privileged=true
+    - --authorization-mode=Node,RBAC
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --enable-admission-plugins=NodeRestriction
+    - --enable-bootstrap-token-auth=true
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+```
+
+controlplane ~ ➜  kubectl get pods -n kube-system
+The connection to the server controlplane:6443 was refused - did you specify the right host or port?
+
+controlplane ~ ✖ kubectl get pods -n kube-system
+NAME                                   READY   STATUS    RESTARTS        AGE
+coredns-787d4945fb-sjcgg               1/1     Running   0               38m
+coredns-787d4945fb-v6dfv               1/1     Running   0               38m
+etcd-controlplane                      1/1     Running   0               38m
+kube-apiserver-controlplane            1/1     Running   0               38m
+kube-controller-manager-controlplane   1/1     Running   2 (5m20s ago)   38m
+kube-proxy-72r8k                       1/1     Running   0               38m
+kube-scheduler-controlplane            1/1     Running   2 (5m20s ago)   38m

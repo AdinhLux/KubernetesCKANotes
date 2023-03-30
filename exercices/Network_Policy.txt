@@ -1,0 +1,286 @@
+NOTICE :
+========
+We have deployed few web applications, services and network policies. Inspect the environment.
+
+	     O
+	    | |
+		---
+	
+ 	     |      
+	     |
+		 ▼
+		 
+	   30080
+  ################
+  #				 #
+  # External POD #
+  #				 #
+  ################
+ 
+       
+	    
+
+					#################                    ################        
+					#               #                    #              #       
+					#  Payroll POD  # 8080               # Internal POD # 
+					#               #                    #              #       
+					#################                    ################   
+ 
+ 
+					############                
+					#          #                  
+					#  Db POD  # 3306             
+					#          #                   
+					############                   
+
+
+
+Q:
+--
+How many network policies do you see in the environment ?
+
+
+A:
+--
+Run the command: kubectl get networkpolicy or kubectl get netpol
+
+
+controlplane ~ ➜  kubectl get networkpolicy
+NAME             POD-SELECTOR   AGE
+payroll-policy   name=payroll   7m9s
+
+
+===============================================================================================================================
+
+Q:
+--
+Which pod is the Network Policy applied on ?
+
+
+A:
+--
+Run the command: kubectl get networkpolicy and look under the Pod Selector column.
+After getting the labels, identify the correct pod name by their labels.
+Run the command: kubectl get po --show-labels | grep name=payroll
+
+
+controlplane ~ ➜  kubectl get po --show-labels | grep name=payroll
+payroll    1/1     Running   0          3m17s   name=payroll
+
+
+===============================================================================================================================
+
+Q:
+--
+What type of traffic is this Network Policy configured to handle ?
+
+
+A:
+--
+Run the command: kubectl describe networkpolicy and look under the Policy Types section.
+
+
+controlplane ~ ➜  kubectl describe networkpolicy
+```  
+Name:         payroll-policy
+Namespace:    default
+Created on:   2023-03-30 12:51:32 -0400 EDT
+Labels:       <none>
+Annotations:  <none>
+Spec:
+  PodSelector:     name=payroll
+  Allowing ingress traffic:
+    To Port: 8080/TCP
+    From:
+      PodSelector: name=internal
+  Not affecting egress traffic
+  Policy Types: Ingress
+```  
+  
+
+controlplane ~ ➜  kubectl get networkpolicy payroll-policy -o yaml
+
+```
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":{"annotations":{},"name":"payroll-policy","namespace":"default"},"spec":{"ingress":[{"from":[{"podSelector":{"matchLabels":{"name":"internal"}}}],"ports":[{"port":8080,"protocol":"TCP"}]}],"podSelector":{"matchLabels":{"name":"payroll"}},"policyTypes":["Ingress"]}}
+  creationTimestamp: "2023-03-30T16:51:32Z"
+  generation: 1
+  name: payroll-policy
+  namespace: default
+  resourceVersion: "3237"
+  uid: cb4998f4-0228-4e70-a80b-8974aa7239bf
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          name: internal
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      name: payroll
+  policyTypes:
+  - Ingress
+status: {}
+```
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the impact of the rule configured on this Network Policy ?
+
+
+A:
+--
+Traffic From Internal to Payroll POD is allowed
+Internal POD can access port 8080 on Payroll POD
+  
+
+===============================================================================================================================
+
+Q:
+--
+Perform a connectivity test using the User Interface in these Applications to access the payroll-service at port 8080.
+
+
+A:
+--
+Only Internal application can access payroll service
+
+
+===============================================================================================================================
+
+Q:
+--
+Perform a connectivity test using the User Interface of the Internal Application to access the external-service at port 8080.
+
+
+A:
+--
+Successful
+
+
+===============================================================================================================================
+
+Q:
+--
+Create a network policy to allow traffic from the Internal application only to the payroll-service and db-service.
+Use the spec given below. You might want to enable ingress traffic to the pod to test your rules in the UI.
+
+
+Policy Name: internal-policy
+Policy Type: Egress
+Egress Allow: payroll
+Payroll Port: 8080
+Egress Allow: mysql
+MySQL Port: 3306
+
+
+
+	     O
+	    | |
+		---
+	
+ 	     |      
+	     |
+		 ▼
+		 
+	   30080
+  ################
+  #				 #
+  # External POD #
+  #				 #
+  ################
+ 
+       
+	    
+
+					#################                    ################        
+					#               #                    #              #       
+					#  Payroll POD  # 8080   <------     # Internal POD # 
+					#               #            |       #              #       
+					#################            |       ################   
+												 |
+												 |
+					############                 |
+					#          #                 | 
+					#  Db POD  # 3306      <-----| 
+					#          #                   
+					############                   
+
+
+
+A:
+--
+Solution manifest file for a network policy internal-policy as follows:
+
+
+controlplane ~ ➜  vi internal-policy.yaml
+
+```
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: internal-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+	  # We select the 'internal' POD as reference
+      name: internal
+  policyTypes:
+  - Egress
+  - Ingress
+  ingress:
+    - {}
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          name: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
+
+  # We allow TCP traffic from 'internal' POD to 'payroll' POD on port 8080
+  - to:
+    - podSelector:
+        matchLabels:
+          name: payroll
+    ports:
+    - protocol: TCP
+      port: 8080
+
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+```
+
+controlplane ~ ➜  kubectl create -f internal-policy.yaml 
+networkpolicy.networking.k8s.io/internal-policy created
+
+
+
+Note: 
+=====
+We have also allowed Egress traffic to TCP and UDP port. 
+This has been added to ensure that the internal DNS resolution works from the internal pod.
+
+Remember: The kube-dns service is exposed on port 53:
+
+controlplane ~ ➜  kubectl get svc -n kube-system 
+NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   62m
+
+
+===============================================================================================================================
