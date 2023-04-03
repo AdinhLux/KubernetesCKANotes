@@ -4180,3 +4180,33 @@ Spec:
   Not affecting egress traffic
   Policy Types: Ingress
 ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Storage
+
+Just as in Docker, the pods created in Kubernetes are transient in nature : when a pod is created to process data, and then deleted, the data processed by it, gets deleted as well.
+
+For data to remain, like in Docker, `we attach a volume to the pod`
+
+<div align="center">
+  <a href="CKA_Storage_4.jpg" target="_blank">
+    <img src="assets/CKA_Storage_4.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>In the host</b>, we have a <b>/data</b> directory we will mount to a directory inside the container (the <b>/opt</b> folder). The random number will now be written to /opt mount, which happens to be on /data volume, which is in fact the /data directory on the host.</i>
+</div>
+
+<br/>
+
+> <mark><ins>**WARNING**</ins></mark>
+>
+> Configuring directly the `hostPath` option is NOT recommended on a multi node cluster.
+>
+> In the exeample above, the Pod will use the `/data` directory on `all nodes`.
