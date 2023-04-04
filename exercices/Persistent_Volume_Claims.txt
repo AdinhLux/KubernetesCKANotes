@@ -1,0 +1,504 @@
+The application stores logs at location /log/app.log. View the logs.
+You can exec in to the container and open the file:
+
+kubectl exec webapp -- cat /log/app.log
+
+
+controlplane ~ ➜  kubectl exec webapp -- cat /log/app.log
+[2023-04-04 10:15:51,029] INFO in event-simulator: USER2 is viewing page3
+[2023-04-04 10:15:52,030] INFO in event-simulator: USER2 is viewing page1
+[2023-04-04 10:15:53,031] INFO in event-simulator: USER4 logged out
+[2023-04-04 10:15:54,031] INFO in event-simulator: USER2 is viewing page3
+[2023-04-04 10:15:55,033] INFO in event-simulator: USER3 logged out
+[2023-04-04 10:15:56,034] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+[2023-04-04 10:15:56,034] INFO in event-simulator: USER3 is viewing page1
+[2023-04-04 10:15:57,035] INFO in event-simulator: USER3 is viewing page2
+[2023-04-04 10:15:58,036] INFO in event-simulator: USER3 is viewing page2
+[2023-04-04 10:15:59,037] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+[2023-04-04 10:15:59,037] INFO in event-simulator: USER4 is viewing page2
+[2023-04-04 10:16:00,039] INFO in event-simulator: USER4 is viewing page1
+[2023-04-04 10:16:01,039] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+[2023-04-04 10:16:01,040] INFO in event-simulator: USER3 is viewing page1
+[2023-04-04 10:16:02,040] INFO in event-simulator: USER3 logged in
+[2023-04-04 10:16:03,041] INFO in event-simulator: USER2 is viewing page1
+[2023-04-04 10:16:04,042] INFO in event-simulator: USER2 is viewing page2
+[2023-04-04 10:16:05,043] INFO in event-simulator: USER4 logged out
+[2023-04-04 10:16:06,044] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+[2023-04-04 10:16:06,079] INFO in event-simulator: USER3 is viewing page2
+[2023-04-04 10:16:07,080] WARNING in event-simulator: USER7 Order failed as the item is OUT OF STOCK.
+[2023-04-04 10:16:07,080] INFO in event-simulator: USER1 is viewing page3
+[2023-04-04 10:16:08,081] INFO in event-simulator: USER1 logged out
+[2023-04-04 10:16:09,082] INFO in event-simulator: USER2 is viewing page1
+[2023-04-04 10:16:10,083] INFO in event-simulator: USER1 is viewing page2
+[2023-04-04 10:16:11,084] WARNING in event-simulator: USER5 Failed to Login as the account is locked due to MANY FAILED ATTEMPTS.
+[2023-04-04 10:16:11,085] INFO in event-simulator: USER3 logged in
+[2023-04-04 10:16:12,086] INFO in event-simulator: USER3 is viewing page1
+[2023-04-04 10:16:13,087] INFO in event-simulator: USER2 is viewing page1
+[2023-04-04 10:16:14,089] INFO in event-simulator: USER3 logged in
+
+
+
+
+
+
+Q:
+--
+If the POD was to get deleted now, would you be able to view these logs ?
+
+
+A:
+--
+Use the command kubectl delete to delete a webapp pod and try to view those logs again.
+
+
+controlplane ~ ➜  kubectl get pods
+NAME     READY   STATUS    RESTARTS   AGE
+webapp   1/1     Running   0          83s
+
+
+controlplane ~ ➜  kubectl delete pods webapp
+pod "webapp" deleted
+
+
+controlplane ~ ➜  kubectl exec webapp -- cat /log/app.log
+Error from server (NotFound): pods "webapp" not found
+
+
+
+The logs are stored in the Container's file system that lives only as long as the Container does. 
+Once the pod is destroyed, you cannot view the logs again.
+
+===============================================================================================================================
+
+Q:
+--
+Configure a volume to store these logs at /var/log/webapp on the host.
+Use the spec provided below.
+
+
+Name: webapp
+Image Name: kodekloud/event-simulator
+Volume HostPath: /var/log/webapp
+Volume Mount: /log
+
+
+A:
+--
+A) Use the command kubectl get po webapp -o yaml > webapp.yaml and add the given properties under the spec.volumes and spec.containers.volumeMounts.
+
+controlplane ~ ➜  vi webapp-pod.yaml
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+
+  volumes:
+  - name: log-volume
+    hostPath:
+      # directory location on host
+      path: /var/log/webapp
+      # this field is optional
+      type: Directory
+```
+
+B) Use the command kubectl run to create a new pod and use the flag --dry-run=client -o yaml to generate the manifest file.
+
+In the manifest file add spec.volumes and spec.containers.volumeMounts property.
+
+
+
+controlplane ~ ➜  kubectl replace -f webapp.yaml --force
+pod/webapp replaced
+
+
+===============================================================================================================================
+
+Q:
+--
+Create a Persistent Volume with the given specification.
+
+
+Volume Name: pv-log
+Storage: 100Mi
+Access Modes: ReadWriteMany
+Host Path: /pv/log
+Reclaim Policy: Retain
+
+
+A:
+--
+controlplane ~ ➜  vi pv-log.yaml
+
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-log
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 100Mi
+  hostPath:
+    path: /pv/log
+```
+
+controlplane ~ ➜  kubectl create -f pv-log.yaml
+persistentvolume/pv-log created
+
+
+===============================================================================================================================
+
+Q:
+--
+Let us claim some of that storage for our application. 
+Create a Persistent Volume Claim with the given specification.
+
+
+Volume Name: claim-log-1
+Storage Request: 50Mi
+Access Modes: ReadWriteOnce
+
+
+A:
+--
+controlplane ~ ➜  vi claim-log-1.yaml
+
+```
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Mi
+```
+  
+controlplane ~ ➜  kubectl create -f claim-log-1.yaml 
+persistentvolumeclaim/claim-log-1 created
+  
+
+===============================================================================================================================
+
+Q:
+--
+What is the state of the Persistent Volume Claim ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl get persistentvolumeclaims 
+NAME          STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+claim-log-1   Pending                                                     42s
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the state of the Persistent Volume ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl get persistentvolume
+NAME     CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+pv-log   100Mi      RWX            Retain           Available                                   3m14s
+
+
+===============================================================================================================================
+
+Q:
+--
+Why is the claim not bound to the available Persistent Volume ?
+
+
+A:
+--
+Run the command: kubectl get pv,pvc and look under the Access Modes section.
+The Access Modes set on the PV and the PVC do not match.
+
+
+controlplane ~ ➜  kubectl get pv,pvc
+NAME                      CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+persistentvolume/pv-log   100Mi      RWX            Retain           Available                                   5m32s
+
+NAME                                STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/claim-log-1   Pending                                                     3m49s
+
+
+===============================================================================================================================
+
+Q:
+--
+Update the Access Mode on the claim to bind it to the PV.
+
+Delete and recreate the claim-log-1.
+
+
+Volume Name: claim-log-1
+Storage Request: 50Mi
+PVol: pv-log
+Status: Bound
+
+
+A:
+--
+Set the Access Mode on the PVC to ReadWriteMany.
+
+
+controlplane ~ ➜  vi claim-log-1.yaml
+
+``` BEFORE
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Mi
+```
+
+``` AFTER
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Mi
+```
+
+Delete the existing pvc:
+
+controlplane ~ ➜  kubectl delete pvc claim-log-1
+persistentvolumeclaim "claim-log-1" deleted
+
+controlplane ~ ➜  kubectl create -f claim-log-1.yaml 
+
+
+===============================================================================================================================
+
+Q:
+--
+You requested for 50Mi, how much capacity is now available to the PVC ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl get pvc
+NAME          STATUS   VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+claim-log-1   Bound    pv-log   100Mi      RWX                           64s
+
+
+===============================================================================================================================
+
+Q:
+--
+Update the webapp pod to use the persistent volume claim as its storage.
+Replace hostPath configured earlier with the newly created PersistentVolumeClaim.
+
+
+Name: webapp
+Image Name: kodekloud/event-simulator
+Volume: PersistentVolumeClaim=claim-log-1
+Volume Mount: /log
+
+
+A:
+--
+controlplane ~ ➜  vi webapp.yaml 
+
+``` BEFORE
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+
+  volumes:
+  - name: log-volume
+    hostPath:
+      # directory location on host
+      path: /var/log/webapp
+      # this field is optional
+      type: Directory
+```
+
+``` AFTER
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+
+  volumes:
+  - name: log-volume
+	# HERE THE CHANGES
+    persistentVolumeClaim:
+      claimName: claim-log-1
+```
+
+controlplane ~ ➜  kubectl delete po webapp
+pod "webapp" deleted
+
+controlplane ~ ➜  kubectl create -f webapp.yaml 
+pod/webapp created
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the Reclaim Policy set on the Persistent Volume pv-log ?
+
+
+A:
+--
+controlplane ~ ➜  kubectl get pv
+NAME     CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                 STORAGECLASS   REASON   AGE
+pv-log   100Mi      RWX            Retain           Bound    default/claim-log-1                           16m
+
+
+===============================================================================================================================
+
+Q:
+--
+What would happen to the PV if the PVC was destroyed ?
+
+
+A:
+--
+The PV is not deleted but not available
+
+
+===============================================================================================================================
+
+Q:
+--
+Try deleting the PVC and notice what happens.
+If the command hangs, you can use CTRL + C to get back to the bash prompt OR check the status of the pvc from another terminal
+
+
+A:
+--
+The PVC is stuck in 'terminating' state
+
+Run the command: kubectl delete pvc claim-log-1 and kubectl get pvc
+
+
+controlplane ~ ➜  kubectl delete pvc claim-log-1
+persistentvolumeclaim "claim-log-1" deleted
+^C
+
+
+controlplane ~ ✖ kubectl get pvc
+NAME          STATUS        VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+claim-log-1   Terminating   pv-log   100Mi      RWX                           9m42s
+
+
+===============================================================================================================================
+
+Q:
+--
+Why is the PVC stuck in Terminating state ?
+
+
+A:
+--
+The PVC was still being used by the webapp pod when we issued the delete command. 
+Until the pod is deleted, the PVC will remain in a terminating state.
+
+
+===============================================================================================================================
+
+Q:
+--
+Let us now delete the webapp Pod.
+Once deleted, wait for the pod to fully terminate.
+
+
+Name: webapp
+
+
+A:
+--
+To delete the pod without any delay and confirmation, run the command kubectl delete pod webapp --force
+
+controlplane ~ ➜  kubectl delete pod webapp --force
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "webapp" force deleted
+
+controlplane ~ ➜  kubectl get pvc
+No resources found in default namespace.
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the state of the PVC now ?
+
+
+A:
+--
+Deleted
+
+controlplane ~ ➜  kubectl get pvc
+No resources found in default namespace.
+
+
+===============================================================================================================================
+
+Q:
+--
+What is the state of the Persistent Volume now ?
+
+
+A:
+--
+Released
+
+controlplane ~ ➜  kubectl get pv
+NAME     CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS     CLAIM                 STORAGECLASS   REASON   AGE
+pv-log   100Mi      RWX            Retain           Released   default/claim-log-1                           22m

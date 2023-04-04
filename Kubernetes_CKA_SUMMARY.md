@@ -4180,3 +4180,288 @@ Spec:
   Not affecting egress traffic
   Policy Types: Ingress
 ```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Storage
+
+Just as in Docker, the pods created in Kubernetes are transient in nature : when a pod is created to process data, and then deleted, the data processed by it, gets deleted as well.
+
+For data to remain, like in Docker, `we attach a volume to the pod`
+
+<div align="center">
+  <a href="CKA_Storage_4.jpg" target="_blank">
+    <img src="assets/CKA_Storage_4.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>In the host</b>, we have a <b>/data</b> directory we will mount to a directory inside the container (the <b>/opt</b> folder). The random number will now be written to /opt mount, which happens to be on /data volume, which is in fact the /data directory on the host.</i>
+</div>
+
+<br/>
+
+> <mark><ins>**WARNING**</ins></mark>
+>
+> Configuring directly the `hostPath` option is **NOT recommended** on a multi node cluster : in the exeample above, the Pod will use the `/data` directory on `all nodes`.
+>
+> These /data, as they're on different servers, are not the same **unless** we configure some kind of `external replicated cluster storage solution`. K8S supports several types of different stotage solutions such as NFS, Azure disk, etc.
+
+<div align="center">
+  <a href="CKA_Storage_5.jpg" target="_blank">
+    <img src="assets/CKA_Storage_5.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Storage_6.jpg" target="_blank">
+    <img src="assets/CKA_Storage_6.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>NOTICE :</b>,if we want to configure an AWS elastic block store volume as the storage option for volume, we replace the <b>hostPath</b> field with the <b>awsElasticBlockStore</b> field, along with the volumeID et file system type. <b>The volume storage will now be on AWS EBS</b></i>
+</div>
+
+&nbsp;
+
+> ### <ins>**Persistent Volumes** & **Persistent Volume Claims**</ins>
+>
+> ---
+
+In the previous section, we configured volumes **within the pod definition file**.
+
+What if we have to deploy several PODs ? The user will have to configure volume every time for each pod.
+
+Instead, we would like to `manage storage more centrally` : we would like it to be configured in a way that an administrator can create **a large pool of storage** and then users carve out pieces from it as required.
+
+That is where `Persistent volumes` can help us : it is a cluster-wide pool of storage volumes configured by an administrator to be used by users deploying apps on the cluster. `The users can now select storage from this pool`.
+
+<div align="center">
+  <a href="CKA_Storage_7.jpg" target="_blank">
+    <img src="assets/CKA_Storage_7.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+```yaml
+# Persistent Volume definition
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-vol1
+spec:
+  # Retain (default value): if Persistent Volume Claim is deleted, volums storage remains until deleted by admin. NOT AVAILABLE FOR REUSE
+  # Delete : VS is automatically deleted when PVC is deleted
+  # Recycle : Data in VS will be scrubbed before making it available to other claims
+  persistentVolumeReclaimPolicy: Recycle
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    # Amount of storage to be reserved
+    storage: 1Gi
+  hostPath:
+    # Node local directory
+    # NOTICE : this option is NOT TO BE USED in a production environment
+    # path: /tmp/data
+    #
+    # Instead, use an external Storage solution
+    awsElasticBlockStore:
+      volumeID: <volume-id>
+      fsType: ext4
+```
+
+<br/>
+
+#### <mark><ins>**How to make the storage available to a node ?**</ins></mark>
+
+Unlike `Persistent Volumes`, created by administrators, `Persistent Volume Claims` are created by users **to use the storage**.
+
+Once the claims are created, K8S binds the persistent volumes to claims, based on :
+
+- the `request` set on the volume
+- the `properties` set on the volume
+
+`Every PVC is bound to single PV`. During the binding process, K8S tries to find a PV that has a sufficient capacity, as requested by the claim.
+
+<div align="center">
+  <a href="CKA_Storage_8.jpg" target="_blank">
+    <img src="assets/CKA_Storage_8.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+However if there are multiple possible matches for a single claim, and we would like to specifically use a particular volume, we could still use `labels` and `selectors` to bind the right volumes.
+
+<div align="center">
+  <a href="CKA_Storage_9.jpg" target="_blank">
+    <img src="assets/CKA_Storage_9.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+```yaml
+# Persistent Volume Claim definition
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myclaim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    # resources to request
+    requests:
+      storage: 500Mi
+```
+
+<br/>
+
+Once you create a PVC use it in a POD definition file by specifying the PVC Claim name under persistentVolumeClaim section in the volumes section like this :
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+        - mountPath: "/var/www/html"
+          name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim
+```
+
+<br/>
+
+The same is true for `ReplicaSets` or `Deployments`. Add this to the pod template section of a Deployment on ReplicaSet.
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+- List Persistent Volumes (PV)
+
+```bash
+controlplane ~ ➜  kubectl get persistentvolume
+
+NAME     CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+pv-log   100Mi      RWX            Retain           Available                                   3m14s
+```
+
+- List Persistent Volume Claims (PVC)
+
+```bash
+# If a created PVC is not bind to any PV
+controlplane ~ ➜  kubectl get persistentvolumeclaims
+
+NAME          STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+claim-log-1   Pending                                                     42s
+```
+
+- Delete PVC
+
+```bash
+controlplane ~ ➜  kubectl delete pvc claim-log-1
+
+persistentvolumeclaim "claim-log-1" deleted
+```
+
+&nbsp;
+
+> ### <ins>**Storage Class**</ins>
+>
+> ---
+
+In the previous section, we defined PV and PVC. Before creating the PV, `we must have created the disk`
+
+```bash
+# In the example, we first provision disk from Google Cloud and then manually create a PV definition file using the same name as of the disk we created
+
+# It is called static provisioning volumes
+
+gcloud beta compute disks create \
+    --size 1GB
+    --region us-east1
+    pd-disk
+```
+
+```yaml
+# Persistent Volume definition
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-vol1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 500Mi
+  gcePersistentDisk:
+    # the Name we defined in our GCP command line
+    pdName: pd-disk
+    fsType: ext4
+```
+
+<br/>
+
+It would be nice if the `volume gets provisioned automatically` when the application requires it, and that's where `Storage Class` comes in.
+
+With Storage classes,we can define a `provisioner`, such as Google Storage that can automatically provision storage on Google Cloud and **attach that to PODs** when a claim is made. That's called `dynamic provisioning of volumes`
+
+```yaml
+# sc-definition.yaml. The Storage class will create automatically the Persistent Volume
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: google-storage
+provisioner: kubernetes.io/gce-pd
+
+# Specific to the provisioner (here Goocle Cloud)
+parameters:
+  # Google persistent disk : pd-standard | pd-ssd
+  type: pd-standard
+  # none | regional-pd
+  replication-type: none
+```
+
+<div align="center">
+  <a href="CKA_Storage_10.jpg" target="_blank">
+    <img src="assets/CKA_Storage_10.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+ <a href="CKA_Storage_11.jpg" target="_blank">
+    <img src="assets/CKA_Storage_11.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>As we've created our Storage Class</b> we no longer need the PV definition because the PV and any associated storage is going to be created automatically when the Storage class is created. We just have to specify the <b>storageClassName</b> in the PVC definition file.</i>
+</div>
+
+<br/>
+
+There are many provisionners as well such as AWS EBS, Azure File, Azure Disk, CephFS and so on. With each of these provisioners, we can pass in additional parameters such as the type of disk to provision, the replication type, et cetera.
+
+<div align="center">
+  <a href="CKA_Storage_12.jpg" target="_blank">
+    <img src="assets/CKA_Storage_12.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+&nbsp;
