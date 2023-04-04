@@ -4382,3 +4382,86 @@ controlplane ~ ➜  kubectl delete pvc claim-log-1
 
 persistentvolumeclaim "claim-log-1" deleted
 ```
+
+&nbsp;
+
+> ### <ins>**Storage Class**</ins>
+>
+> ---
+
+In the previous section, we defined PV and PVC. Before creating the PV, `we must have created the disk`
+
+```bash
+# In the example, we first provision disk from Google Cloud and then manually create a PV definition file using the same name as of the disk we created
+
+# It is called static provisioning volumes
+
+gcloud beta compute disks create \
+    --size 1GB
+    --region us-east1
+    pd-disk
+```
+
+```yaml
+# Persistent Volume definition
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-vol1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 500Mi
+  gcePersistentDisk:
+    # the Name we defined in our GCP command line
+    pdName: pd-disk
+    fsType: ext4
+```
+
+<br/>
+
+It would be nice if the `volume gets provisioned automatically` when the application requires it, and that's where `Storage Class` comes in.
+
+With Storage classes,we can define a `provisioner`, such as Google Storage that can automatically provision storage on Google Cloud and **attach that to PODs** when a claim is made. That's called `dynamic provisioning of volumes`
+
+```yaml
+# sc-definition.yaml. The Storage class will create automatically the Persistent Volume
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: google-storage
+provisioner: kubernetes.io/gce-pd
+
+# Specific to the provisioner (here Goocle Cloud)
+parameters:
+  # Google persistent disk : pd-standard | pd-ssd
+  type: pd-standard
+  # none | regional-pd
+  replication-type: none
+```
+
+<div align="center">
+  <a href="CKA_Storage_10.jpg" target="_blank">
+    <img src="assets/CKA_Storage_10.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+ <a href="CKA_Storage_11.jpg" target="_blank">
+    <img src="assets/CKA_Storage_11.jpg" alt="Settings_1" width="350" height="300"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>As we've created our Storage Class</b> we no longer need the PV definition because the PV and any associated storage is going to be created automatically when the Storage class is created. We just have to specify the <b>storageClassName</b> in the PVC definition file.</i>
+</div>
+
+<br/>
+
+There are many provisionners as well such as AWS EBS, Azure File, Azure Disk, CephFS and so on. With each of these provisioners, we can pass in additional parameters such as the type of disk to provision, the replication type, et cetera.
+
+<div align="center">
+  <a href="CKA_Storage_12.jpg" target="_blank">
+    <img src="assets/CKA_Storage_12.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+&nbsp;
