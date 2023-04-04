@@ -4207,6 +4207,178 @@ For data to remain, like in Docker, `we attach a volume to the pod`
 
 > <mark><ins>**WARNING**</ins></mark>
 >
-> Configuring directly the `hostPath` option is NOT recommended on a multi node cluster.
+> Configuring directly the `hostPath` option is **NOT recommended** on a multi node cluster : in the exeample above, the Pod will use the `/data` directory on `all nodes`.
 >
-> In the exeample above, the Pod will use the `/data` directory on `all nodes`.
+> These /data, as they're on different servers, are not the same **unless** we configure some kind of `external replicated cluster storage solution`. K8S supports several types of different stotage solutions such as NFS, Azure disk, etc.
+
+<div align="center">
+  <a href="CKA_Storage_5.jpg" target="_blank">
+    <img src="assets/CKA_Storage_5.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+<div align="center">
+  <a href="CKA_Storage_6.jpg" target="_blank">
+    <img src="assets/CKA_Storage_6.jpg" alt="Settings_1" width="600" height="400"/>
+  </a>
+</div>
+
+<div align="center">
+  <i><b>NOTICE :</b>,if we want to configure an AWS elastic block store volume as the storage option for volume, we replace the <b>hostPath</b> field with the <b>awsElasticBlockStore</b> field, along with the volumeID et file system type. <b>The volume storage will now be on AWS EBS</b></i>
+</div>
+
+&nbsp;
+
+> ### <ins>**Persistent Volumes** & **Persistent Volume Claims**</ins>
+>
+> ---
+
+In the previous section, we configured volumes **within the pod definition file**.
+
+What if we have to deploy several PODs ? The user will have to configure volume every time for each pod.
+
+Instead, we would like to `manage storage more centrally` : we would like it to be configured in a way that an administrator can create **a large pool of storage** and then users carve out pieces from it as required.
+
+That is where `Persistent volumes` can help us : it is a cluster-wide pool of storage volumes configured by an administrator to be used by users deploying apps on the cluster. `The users can now select storage from this pool`.
+
+<div align="center">
+  <a href="CKA_Storage_7.jpg" target="_blank">
+    <img src="assets/CKA_Storage_7.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+```yaml
+# Persistent Volume definition
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-vol1
+spec:
+  # Retain (default value): if Persistent Volume Claim is deleted, volums storage remains until deleted by admin. NOT AVAILABLE FOR REUSE
+  # Delete : VS is automatically deleted when PVC is deleted
+  # Recycle : Data in VS will be scrubbed before making it available to other claims
+  persistentVolumeReclaimPolicy: Recycle
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    # Amount of storage to be reserved
+    storage: 1Gi
+  hostPath:
+    # Node local directory
+    # NOTICE : this option is NOT TO BE USED in a production environment
+    # path: /tmp/data
+    #
+    # Instead, use an external Storage solution
+    awsElasticBlockStore:
+      volumeID: <volume-id>
+      fsType: ext4
+```
+
+<br/>
+
+#### <mark><ins>**How to make the storage available to a node ?**</ins></mark>
+
+Unlike `Persistent Volumes`, created by administrators, `Persistent Volume Claims` are created by users **to use the storage**.
+
+Once the claims are created, K8S binds the persistent volumes to claims, based on :
+
+- the `request` set on the volume
+- the `properties` set on the volume
+
+`Every PVC is bound to single PV`. During the binding process, K8S tries to find a PV that has a sufficient capacity, as requested by the claim.
+
+<div align="center">
+  <a href="CKA_Storage_8.jpg" target="_blank">
+    <img src="assets/CKA_Storage_8.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+However if there are multiple possible matches for a single claim, and we would like to specifically use a particular volume, we could still use `labels` and `selectors` to bind the right volumes.
+
+<div align="center">
+  <a href="CKA_Storage_9.jpg" target="_blank">
+    <img src="assets/CKA_Storage_9.jpg" alt="Settings_1" width="500" height="300"/>
+  </a>
+</div>
+
+<br/>
+
+```yaml
+# Persistent Volume Claim definition
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myclaim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    # resources to request
+    requests:
+      storage: 500Mi
+```
+
+<br/>
+
+Once you create a PVC use it in a POD definition file by specifying the PVC Claim name under persistentVolumeClaim section in the volumes section like this :
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+        - mountPath: "/var/www/html"
+          name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim
+```
+
+<br/>
+
+The same is true for `ReplicaSets` or `Deployments`. Add this to the pod template section of a Deployment on ReplicaSet.
+
+<br/>
+
+> #### Kubectl
+>
+> ---
+
+- List Persistent Volumes (PV)
+
+```bash
+controlplane ~ ➜  kubectl get persistentvolume
+
+NAME     CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+pv-log   100Mi      RWX            Retain           Available                                   3m14s
+```
+
+- List Persistent Volume Claims (PVC)
+
+```bash
+# If a created PVC is not bind to any PV
+controlplane ~ ➜  kubectl get persistentvolumeclaims
+
+NAME          STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+claim-log-1   Pending                                                     42s
+```
+
+- Delete PVC
+
+```bash
+controlplane ~ ➜  kubectl delete pvc claim-log-1
+
+persistentvolumeclaim "claim-log-1" deleted
+```
